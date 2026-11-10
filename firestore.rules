@@ -1,0 +1,140 @@
+rules_version = '2';
+
+// Security rules for the Children's Program Sign-Up Tool.
+//
+// These rules are the real lock on the data. The web page can be changed by
+// anyone with browser dev tools; these cannot. In plain language:
+//
+//   1. Signed-out visitors can read and write nothing.
+//   2. A signed-in account only counts if it has a role document in /users,
+//      which can only be created by hand in the Firebase console.
+//   3. Staff can work with sign-ups and the day-to-day fields on a program.
+//      Only the admin can change settings, templates, volunteers, or create
+//      programs.
+//   4. Personal data lives ONLY in sign-up documents. Every sign-up carries a
+//      purgeAfter date. Once that date passes, the sign-up cannot be read by
+//      anyone, even if the app has not deleted it yet.
+//   5. Every sign-up must have a matching "ticket" in /purgeQueue (an ID and
+//      a date, nothing personal) so the app can find and delete expired
+//      sign-ups without ever reading them.
+
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function role() {
+      return get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isStaff() {
+      return signedIn() && role() in ['staff', 'admin'];
+    }
+    function isAdmin() {
+      return signedIn() && role() == 'admin';
+    }
+
+    // Role documents. Readable only by their own account, never writable
+    // from the app. Create and edit them in the Firebase console.
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Settings. One document, one field. Retention is capped at 30 days here,
+    // so no version of the app can raise it past that.
+    match /settings/{id} {
+      allow read: if isStaff();
+      allow create, update: if isAdmin()
+        && id == 'main'
+        && request.resource.data.keys().hasOnly(['retentionDays'])
+        && request.resource.data.retentionDays is int
+        && request.resource.data.retentionDays >= 1
+        && request.resource.data.retentionDays <= 30;
+      allow delete: if false;
+    }
+
+    match /templates/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Volunteer roster: first name, last initial, dog's name, note.
+    match /volunteers/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Programs hold dates, settings, seat numbers and anonymous counts.
+    // They never hold names or contact details.
+    match /programs/{pid} {
+      allow read: if isStaff();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isStaff()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'seatsTaken', 'seats', 'waitlist', 'needsContact', 'counts',
+          'tracks', 'volunteerIds', 'status', 'stats', 'headcount', 'closedAt'
+        ]));
+      allow delete: if false;
+
+      // Sign-ups: the only place personal data is stored.
+      match /signups/{sid} {
+        function live() {
+          return resource.data.purgeAfter > request.time;
+        }
+        function strMax(d, field, max) {
+          return d[field] is string && d[field].size() <= max;
+        }
+        function validSignup() {
+          let d = request.resource.data;
+          let ticket = getAfter(/databases/$(db)/documents/purgeQueue/$(sid)).data;
+          return d.keys().hasOnly([
+              'childFirst', 'childInitial', 'age', 'caregiverFirst', 'phone',
+              'email', 'language', 'languageOther', 'notes', 'walkIn', 'status',
+              'slot', 'trackId', 'needsContact', 'reminded', 'seriesKey',
+              'createdAt', 'cancelledAt', 'purgeAfter'
+            ])
+            && d.childFirst is string && d.childFirst.size() >= 1 && d.childFirst.size() <= 30
+            // One character only: a full last name cannot be stored.
+            && d.childInitial is string && d.childInitial.size() <= 1
+            && strMax(d, 'caregiverFirst', 30)
+            && strMax(d, 'phone', 30)
+            && strMax(d, 'email', 120)
+            && strMax(d, 'languageOther', 30)
+            && strMax(d, 'notes', 300)
+            && d.language in ['en', 'es', 'other']
+            && d.status in ['registered', 'waitlisted', 'cancelled', 'attended', 'noShow']
+            && d.walkIn is bool
+            // The wipe date must exist, be in the future, stay under the
+            // program's ceiling (set by the admin), and match its ticket.
+            && d.purgeAfter is timestamp
+            && d.purgeAfter > request.time
+            && d.purgeAfter <= get(/databases/$(db)/documents/programs/$(pid)).data.purgeCeiling
+            && ticket.purgeAfter == d.purgeAfter
+            && ticket.programId == pid;
+        }
+
+        // Layer two of the wipe: expired records are unreadable.
+        allow read: if isStaff() && live();
+        allow create: if isStaff() && validSignup();
+        allow update: if isStaff() && live() && validSignup();
+        // Staff may delete only expired sign-ups (that is the purge).
+        allow delete: if isStaff() && (resource == null || !live() || isAdmin());
+      }
+    }
+
+    // Purge tickets: sign-up ID, program ID and wipe date. Nothing personal.
+    match /purgeQueue/{sid} {
+      allow read: if isStaff();
+      allow create, update: if isStaff()
+        && request.resource.data.keys().hasOnly(['programId', 'purgeAfter'])
+        && request.resource.data.programId is string
+        && request.resource.data.purgeAfter is timestamp
+        && getAfter(/databases/$(db)/documents/programs/$(request.resource.data.programId)/signups/$(sid))
+             .data.purgeAfter == request.resource.data.purgeAfter;
+      // A ticket can go only when its sign-up is gone.
+      allow delete: if isStaff() && (resource == null
+        || !existsAfter(/databases/$(db)/documents/programs/$(resource.data.programId)/signups/$(sid)));
+    }
+  }
+}
