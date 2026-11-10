@@ -214,7 +214,7 @@ function requireOpen(program) {
  * two desk computers cannot both take the last seat.
  *
  * input: fields from the form, plus for slotted programs { slot, trackId }.
- * Returns { id, status }.
+ * Returns { id, status, waitlistPosition }.
  */
 export async function addSignup(pid, input) {
   const retentionDays = await getRetentionDays();
@@ -275,7 +275,9 @@ export async function addSignup(pid, input) {
     });
     tx.set(ticketRef(newRef.id), { programId: pid, purgeAfter });
     if (Object.keys(update).length) tx.update(programRef(pid), update);
-    return { id: newRef.id, status };
+    // waitlistPosition: the child's place in line (1 = next), or null.
+    const waitlistPosition = status === STATUS.waitlisted ? update.waitlist.length : null;
+    return { id: newRef.id, status, waitlistPosition };
   });
 
   await refreshCounts(pid);
@@ -375,9 +377,11 @@ export async function setAttendance(pid, sid, status) {
   if (![STATUS.attended, STATUS.noShow, STATUS.registered].includes(status)) {
     throw new UserError('Unknown attendance status.');
   }
+  // The program is checked outside the transaction on purpose. Staff click
+  // attendance for many children quickly; if each click also locked the
+  // program document, the clicks would trip over each other.
+  requireOpen(await getProgram(pid));
   await runTransaction(db, async (tx) => {
-    const pSnap = await tx.get(programRef(pid));
-    requireOpen(pSnap.exists() ? withId(pSnap) : null);
     const sSnap = await tx.get(signupRef(pid, sid));
     if (!sSnap.exists()) throw new UserError('That sign-up no longer exists.');
     const s = sSnap.data();
@@ -411,8 +415,18 @@ export async function setReminded(pid, sid, reminded) {
  * Recount a program from its sign-ups and save the numbers on the program.
  * Runs after every change, so the numbers are already there when the people
  * are wiped. Does nothing once a program is closed: closed stats are frozen.
+ *
+ * Recounts for the same program run one after another, never side by side,
+ * so an older count can never be saved on top of a newer one.
  */
-export async function refreshCounts(pid) {
+const recountQueue = new Map();
+export function refreshCounts(pid) {
+  const next = (recountQueue.get(pid) || Promise.resolve()).then(() => recount(pid), () => recount(pid));
+  recountQueue.set(pid, next);
+  return next;
+}
+
+async function recount(pid) {
   const program = await getProgram(pid);
   if (!program || program.status === 'closed') return null;
   const counts = computeCounts(await listSignups(pid), program);

@@ -14,7 +14,13 @@ const topbar = document.getElementById('topbar');
 let ctx = null; // { role, isAdmin } once signed in
 let cleanup = null; // stops the current screen's live listeners
 
-document.getElementById('signOutBtn').addEventListener('click', () => signOut(auth));
+document.getElementById('signOutBtn').addEventListener('click', () => {
+  // Stop the current screen's live listeners first, so signing out does not
+  // flash a "not allowed" error from a listener that just lost its login.
+  cleanup?.();
+  cleanup = null;
+  signOut(auth);
+});
 window.addEventListener('hashchange', route);
 
 onAuthStateChanged(auth, async (user) => {

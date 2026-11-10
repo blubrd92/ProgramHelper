@@ -1,0 +1,49 @@
+/* Styles for the program page and the sign-up form.
+   Shared styles (buttons, badges, alerts, tables) live in app.css. */
+
+/* header */
+.program-head { margin-bottom: .6rem; }
+.back-link { display: inline-block; padding: .4rem 0; margin-bottom: .3rem; font-weight: 600; }
+.program-when-line, .program-seats-line { margin: .1rem 0; color: var(--muted); font-size: 1.02rem; }
+
+/* buttons above the roster */
+.action-row { display: flex; gap: .7rem; flex-wrap: wrap; margin: 1rem 0; }
+
+/* "Contact these families" list */
+.contact-list { display: grid; gap: .6rem; }
+.contact-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .8rem;
+}
+
+/* counts */
+.counts { margin: 1rem 0; }
+.counts h2 { margin-top: 0; }
+.count-list { display: flex; flex-wrap: wrap; gap: .6rem 1.6rem; margin: 0 0 .6rem; }
+.count-item { min-width: 6rem; }
+.count-item dt { color: var(--muted); font-size: .88rem; font-weight: 700; }
+.count-item dd { margin: 0; font-size: 1.4rem; font-weight: 700; }
+
+/* tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.table-wrap table { min-width: 36rem; }
+.email-cell { overflow-wrap: anywhere; }
+.row-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+/* The pressed Attended / No-show button. The Status column also says the word, so colour is not the only signal. */
+.row-actions .btn[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* cancelled box */
+.cancelled-box { margin: 1.6rem 0 0; }
+.cancelled-box summary { cursor: pointer; font-weight: 700; font-size: 1.1rem; padding: .5rem 0; min-height: 44px; }
+.cancelled-list { padding: .2rem 0 0 1rem; }
+
+/* sign-up form */
+.initial-input { width: 4rem; text-align: center; text-transform: uppercase; }
+.name-row > .field { flex: 1 1 auto; }
+.name-row > .field:last-child { flex: 0 0 auto; }
+.lang-set { border: none; padding: 0; margin: 0 0 .9rem; }
+.lang-set legend { font-weight: 600; padding: 0; margin-bottom: .25rem; }
+.radio-row { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+.radio-label { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; cursor: pointer; }
+.form-notice { margin-top: 0; font-weight: 600; }
+.saved-message { font-size: 1.15rem; font-weight: 700; color: var(--ok); }

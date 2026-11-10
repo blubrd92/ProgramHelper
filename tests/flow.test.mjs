@@ -44,6 +44,7 @@ test('sign-ups fill the seats, then go to the waitlist in order', async () => {
   const d = await store.addSignup(pid, kid('Clover', 'W', { email: '' }));
   Object.assign(ids, { a: a.id, b: b.id, c: c.id, d: d.id });
   assert.deepEqual([a.status, b.status, c.status, d.status], ['registered', 'registered', 'waitlisted', 'waitlisted']);
+  assert.deepEqual([a.waitlistPosition, c.waitlistPosition, d.waitlistPosition], [null, 1, 2]);
   const p = await store.getProgram(pid);
   assert.equal(p.seatsTaken, 2);
   assert.deepEqual(p.waitlist, [c.id, d.id]);
