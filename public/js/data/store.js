@@ -31,7 +31,12 @@ const ticketRef = (sid) => doc(db, 'purgeQueue', sid);
 const withId = (snap) => ({ id: snap.id, ...snap.data() });
 
 /** A friendly error the screen can show as-is. */
-export class UserError extends Error {}
+export class UserError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'UserError';
+  }
+}
 
 // ---------------------------------------------------------------- settings
 
