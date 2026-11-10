@@ -15,3 +15,10 @@ export const firebaseConfig = {
 // When the page is opened from this computer (npm run dev), it uses the local
 // emulator with fake data instead of the real project.
 export const useEmulator = ['localhost', '127.0.0.1'].includes(location.hostname);
+
+// The two shared logins. Staff type only a password; the app supplies the
+// matching email. These addresses are not secrets (the password is).
+// They must match the accounts in Firebase console > Authentication > Users.
+export const loginEmails = useEmulator
+  ? { staff: 'staff@example.test', admin: 'admin@example.test' }
+  : { staff: 'staff@staff.com', admin: 'admin@staff.com' };

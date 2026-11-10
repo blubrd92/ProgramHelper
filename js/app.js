@@ -1,7 +1,7 @@
 // Entry point: login gate, the purge-on-open, and switching between screens.
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db, isEmulator } from './firebase.js';
+import { auth, db, isEmulator, loginEmails } from './firebase.js';
 import { setDb, runPurge } from './data/store.js';
 import { h, clear, toast, showError, field } from './ui.js';
 import { renderHome } from './views/home.js';
@@ -86,34 +86,46 @@ function showLogin() {
   cleanup?.();
   cleanup = null;
   topbar.hidden = true;
-  const email = h('input', { type: 'email', autocomplete: 'username', required: true });
+  // Nobody types an email. They pick Staff or Admin and enter that password;
+  // the matching email comes from firebase-config.js.
+  const staffRadio = h('input', { type: 'radio', name: 'loginRole', value: 'staff', id: 'loginStaff', checked: true });
+  const adminRadio = h('input', { type: 'radio', name: 'loginRole', value: 'admin', id: 'loginAdmin' });
   const password = h('input', { type: 'password', autocomplete: 'current-password', required: true });
   const error = h('p', { class: 'form-error', role: 'alert' });
   const button = h('button', { type: 'submit', class: 'btn btn-primary btn-big' }, 'Sign in');
   const form = h('form', { class: 'card login', novalidate: true },
     h('h1', {}, "Children's Program Sign-Ups"),
-    h('p', { class: 'muted' }, 'Staff only. Sign in with the shared desk login.'),
-    field('Email', email),
+    h('p', { class: 'muted' }, 'Staff only.'),
+    h('fieldset', { class: 'login-role' },
+      h('legend', {}, 'Sign in as'),
+      h('div', { class: 'check-row' }, staffRadio, h('label', { for: 'loginStaff' }, 'Staff')),
+      h('div', { class: 'check-row' }, adminRadio, h('label', { for: 'loginAdmin' }, 'Admin'))),
     field('Password', password),
     error,
     button,
-    isEmulator ? h('p', { class: 'muted small' }, 'Practice mode. Staff: staff@example.test / practice-staff. Admin: admin@example.test / practice-admin.') : null);
+    isEmulator ? h('p', { class: 'muted small' }, 'Practice mode. Staff password: practice-staff. Admin password: practice-admin.') : null);
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     error.textContent = '';
+    if (!password.value) {
+      error.textContent = 'Enter the password.';
+      password.focus();
+      return;
+    }
     button.disabled = true;
+    const role = adminRadio.checked ? 'admin' : 'staff';
     try {
-      await signInWithEmailAndPassword(auth, email.value.trim(), password.value);
+      await signInWithEmailAndPassword(auth, loginEmails[role], password.value);
     } catch (e) {
-      error.textContent = e?.code === 'auth/network-request-failed'
-        ? 'Cannot reach the login service. Check the internet connection.'
-        : 'That email and password did not work.';
+      if (e?.code === 'auth/network-request-failed') error.textContent = 'Cannot reach the login service. Check the internet connection.';
+      else if (e?.code === 'auth/too-many-requests') error.textContent = 'Too many wrong tries. Wait a few minutes and try again.';
+      else error.textContent = `That is not the ${role} password.`;
       button.disabled = false;
       password.select();
     }
   });
   clear(main).append(form);
-  email.focus();
+  password.focus();
 }
 
 function showNoRole(user) {

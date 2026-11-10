@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   remindable, groupFamilies, formatTimeEs, joinNames, buildGroupMessage, buildFamilyMessage,
   emailLists, callList, remindedProgress,
-} from '../docs/js/data/reminders.js';
+} from '../js/data/reminders.js';
 
 // Invented data only.
 const su = (id, first, extra = {}) => ({

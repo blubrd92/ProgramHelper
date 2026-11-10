@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   clampRetention, computePurgeAfter, computePurgeCeiling, cleanSignupInput, computeCounts,
   followThrough, localDateTime, formatTime, fillReminder,
-} from '../docs/js/data/model.js';
+} from '../js/data/model.js';
 
 const program = { date: '2026-11-14', fields: { age: true, email: true, caregiver: true, notes: true } };
 

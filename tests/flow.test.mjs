@@ -4,9 +4,9 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { doc, getDoc, getDocs, updateDoc, collection, Timestamp } from 'firebase/firestore';
 import { makeEnv, DAY } from './helpers.mjs';
-import * as store from '../docs/js/data/store.js';
-import { STARTER_TEMPLATES } from '../docs/js/data/starter-templates.js';
-import { localDateString } from '../docs/js/data/model.js';
+import * as store from '../js/data/store.js';
+import { STARTER_TEMPLATES } from '../js/data/starter-templates.js';
+import { localDateString } from '../js/data/model.js';
 
 let t;
 let pid;

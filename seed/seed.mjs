@@ -2,8 +2,8 @@
 // This never touches the real project: it only knows the emulator addresses.
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, setDoc } from 'firebase/firestore';
-import * as store from '../docs/js/data/store.js';
-import { localDateString } from '../docs/js/data/model.js';
+import * as store from '../js/data/store.js';
+import { localDateString } from '../js/data/model.js';
 import { FAKE_FAMILIES, FAKE_VOLUNTEERS } from './fake-data.mjs';
 
 const PROJECT = 'demo-programhelper';
@@ -88,8 +88,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
 
 console.log('\nPractice data loaded.');
 console.log('Open  http://127.0.0.1:5000');
-console.log('  Staff login:  staff@example.test / practice-staff');
-console.log('  Admin login:  admin@example.test / practice-admin');
+console.log('  Staff password:  practice-staff');
+console.log('  Admin password:  practice-admin');
 
 if (process.argv.includes('--stay')) {
   console.log('\nLeave this window open while you use the app. Press Ctrl+C to stop.\n');

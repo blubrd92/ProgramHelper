@@ -129,3 +129,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 .nowrap { white-space: nowrap; }
 .btn[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+.login-role { border: 1px solid var(--line); border-radius: var(--radius); padding: .4rem 1rem .6rem; margin: 0 0 .9rem; }
+.login-role legend { font-weight: 600; padding: 0 .3rem; }
