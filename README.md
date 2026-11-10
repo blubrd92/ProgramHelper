@@ -2,7 +2,7 @@
 
 A staff-only sign-up tool for the Children's Room at San Rafael Public Library. It replaces the shared Excel workbook. There is no public or parent-facing page.
 
-**Status:** built and tested locally with invented data. **Not deployed.** The Firebase project does not exist yet, and how the site will be published is still an open decision (see "Deploying").
+**Status:** built and tested locally with invented data. **Not deployed.** The Firebase project is `program-helper-e3133`. How the site will be published is still an open decision (see "Deploying").
 
 ## What it does
 
@@ -72,7 +72,7 @@ Firebase's console changes its menus from time to time. If a label below does no
 2. **Authentication:** open Build > Authentication > Get started. Under "Sign-in method", enable **Email/Password** only.
 3. **Firestore:** open Build > Firestore Database > Create database. Choose **production mode**. Pick a US West location; this cannot be changed later.
 4. **Rules:** in Firestore, open the **Rules** tab. Delete what is there, paste the entire contents of `firestore.rules` from this repository, and click **Publish**.
-5. **Web app settings:** open the gear icon > Project settings > "Your apps" > add a **Web** app. Firebase shows a block with `apiKey`, `authDomain`, `projectId`, `appId`. Copy those four values into `public/js/firebase-config.js`, replacing the `REPLACE_ME` lines. These values are not secrets; they only say where the database is.
+5. **Web app settings:** open the gear icon > Project settings > "Your apps" > add a **Web** app. Firebase shows a block with `apiKey`, `authDomain`, `projectId`, `appId`. Copy those four values into `public/js/firebase-config.js` (already done for project `program-helper-e3133`). These values are not secrets; they only say where the database is.
 6. Create the two logins (next section).
 7. Publish the site (see "Deploying"), then add the site's address under Authentication > Settings > **Authorized domains**.
 
@@ -119,7 +119,7 @@ Before the first real use, with invented names only: sign in on the live site, a
 
 1. **"This login has no access."** The account has no `users` document, or its Document ID is not that account's UID, or `role` is misspelled. It must be exactly `staff` or `admin`, lower case.
 2. **"This login is not allowed to do that."** A staff login tried an admin action, or the published rules are older than the app. Republish `firestore.rules`.
-3. **Sign-in fails for everyone on the live site.** The site's address is missing from Authentication > Settings > Authorized domains, or `public/js/firebase-config.js` still says `REPLACE_ME`.
+3. **Sign-in fails for everyone on the live site.** The site's address is missing from Authentication > Settings > Authorized domains, or `public/js/firebase-config.js` points at the wrong project.
 4. **A program page will not load, or the roster is empty when it should not be.** If the program ended more than the retention period ago, the names are gone on purpose; the numbers are on the Stats page. Otherwise press F12, open the Console tab, and look for a red line. A line mentioning "index" includes a link that creates the missing index in one click.
 5. **Everything stops working mid-day with "quota" errors.** The free plan allows about 50,000 reads and 20,000 writes a day, far more than a children's desk should use. Check Firestore > Usage in the console. Service returns the next day (the allowance resets around midnight Pacific).
 6. **Numbers look wrong on Stats.** A program marked "Not final" has not been closed out, so its numbers can still change. The definitions are printed on the Stats page and live in `computeCounts` in `public/js/data/model.js`.
