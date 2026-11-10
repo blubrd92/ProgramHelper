@@ -1,0 +1,22 @@
+/* Styles for the admin-only screens (templates, volunteers, settings). */
+
+.template-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: .8rem; }
+.template-row h2 { margin: 0 0 .2rem; font-size: 1.15rem; }
+.template-row p { margin: 0; }
+.template-row .action-row { margin: 0; }
+
+/* The template editor is tall: let it scroll inside the dialog. */
+.dialog.dialog-wide { width: min(44rem, 96vw); max-height: 92vh; overflow-y: auto; }
+.template-form fieldset, .dialog fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 1rem; padding: .6rem .9rem; }
+.template-form legend { font-weight: 700; padding: 0 .3rem; }
+.template-form textarea { width: 100%; font: inherit; }
+.template-form [hidden] { display: none; }
+
+.slot-row { display: flex; align-items: flex-end; gap: .7rem; flex-wrap: wrap; margin-bottom: .5rem; }
+.slot-row .field { margin: 0; }
+.slot-num { min-width: 4rem; padding-bottom: .6rem; font-weight: 700; }
+.slot-fieldset .btn { margin-top: .3rem; }
+
+.form-error { color: var(--danger, #a4262c); font-weight: 700; margin: .5rem 0 0; min-height: 1.2em; }
+
+.table-wrap { overflow-x: auto; }

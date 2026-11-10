@@ -23,10 +23,10 @@ export function renderProgram(container, ctx, programId) {
   let signups = null;    // null = still loading
   let cancelledOpen = false; // remembers whether the Cancelled box is open
   let loadFailed = false;
-  let volunteers = [];       // the volunteer list (names and dogs only)
+  let volunteers = null;     // the volunteer list (names and dogs only); null = still loading
   let siblingContact = null; // slotted programs: contact carried to the next slot picked
 
-  listVolunteers().then((list) => { volunteers = list; draw(); }).catch(() => {});
+  listVolunteers().then((list) => { volunteers = list; draw(); }).catch(() => { volunteers = []; draw(); });
 
   const stopProgram = watchProgram(programId, (p) => { program = p; draw(); }, onLoadError);
   const stopSignups = watchSignups(programId, (s) => { signups = s; draw(); }, onLoadError);
@@ -287,7 +287,7 @@ export function renderProgram(container, ctx, programId) {
     if (loadFailed && (program === undefined || signups === null)) {
       return h('div', {}, back, h('p', { class: 'alert', role: 'alert' }, 'This program could not be loaded. Check the internet connection and reload the page.'));
     }
-    if (program === undefined || signups === null) {
+    if (program === undefined || signups === null || volunteers === null) {
       return h('div', {}, back, h('p', { class: 'loading' }, 'Loading…'));
     }
     if (program === null) {

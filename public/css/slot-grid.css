@@ -1,0 +1,43 @@
+/* Time-slot grid for slotted programs. Shared styles live in app.css. */
+
+.grid-wrap { overflow-x: auto; }
+
+.slot-grid { table-layout: fixed; min-width: 40rem; }
+.slot-grid th, .slot-grid td { vertical-align: top; padding: .7rem .8rem; border: 1px solid var(--line); }
+
+/* With 3 or 4 columns the table is allowed to be wider than the screen. */
+.slot-grid:has(th.grid-col-head:nth-of-type(4)) { min-width: 66rem; }
+
+.grid-time-head, .grid-time { width: 8.5rem; }
+.grid-time { font-size: 1rem; color: var(--ink); background: #eef1f5; }
+
+/* Column headers */
+.grid-col-head { background: #eef1f5; color: var(--ink); }
+.grid-col-title { font-size: 1.1rem; font-weight: 700; margin-bottom: .4rem; }
+.grid-head-field { margin: .4rem 0; }
+.grid-head-field label { display: block; font-size: .85rem; font-weight: 700; color: var(--muted); margin-bottom: .15rem; }
+.grid-head-field select { width: 100%; min-height: 38px; font-size: .95rem; }
+
+/* Empty cells: plain white with a dashed edge. Filled cells: solid left bar. */
+.grid-empty { background: #fff; border-style: dashed; }
+.grid-filled { background: #f7fbff; border-left: 5px solid var(--brand); }
+.grid-child { font-size: 1.05rem; margin-bottom: .2rem; }
+.grid-notes { overflow-wrap: anywhere; }
+.grid-note { font-weight: 700; color: var(--muted); }
+
+.grid-big-btn { display: block; width: 100%; min-height: 48px; margin-bottom: .5rem; font-size: 1rem; }
+.grid-empty .btn-small { width: 100%; }
+.grid-btns { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .6rem; }
+.grid-cell .email-cell, .grid-cell div { overflow-wrap: anywhere; }
+
+/* Called-out column: red stripes and a red edge (the words say it too). */
+.grid-called-out {
+  background: repeating-linear-gradient(135deg, var(--danger-bg), var(--danger-bg) 10px, #fff 10px, #fff 20px);
+  border-left: 5px solid var(--danger);
+}
+th.grid-col-head.grid-called-out { background: var(--danger-bg); }
+
+.grid-callout .contact-item { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin: .5rem 0; }
+
+.slot-grid-page section { margin-bottom: 1.5rem; }
+.row-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
