@@ -2,8 +2,8 @@
 // This never touches the real project: it only knows the emulator addresses.
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, setDoc } from 'firebase/firestore';
-import * as store from '../public/js/data/store.js';
-import { localDateString } from '../public/js/data/model.js';
+import * as store from '../docs/js/data/store.js';
+import { localDateString } from '../docs/js/data/model.js';
 import { FAKE_FAMILIES, FAKE_VOLUNTEERS } from './fake-data.mjs';
 
 const PROJECT = 'demo-programhelper';

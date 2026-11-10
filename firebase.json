@@ -1,8 +1,8 @@
 {
   "firestore": { "rules": "firestore.rules" },
   "hosting": {
-    "public": "public",
-    "ignore": ["**/.*"],
+    "public": "docs",
+    "ignore": [],
     "headers": [
       { "source": "**", "headers": [
         { "key": "X-Robots-Tag", "value": "noindex, nofollow" },

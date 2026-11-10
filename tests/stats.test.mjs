@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { programNumbers, totals, ageBreakdown, toCsv } from '../public/js/data/stats.js';
+import { programNumbers, totals, ageBreakdown, toCsv } from '../docs/js/data/stats.js';
 
 // Invented programs; counts only.
 const c = (registered, attended, extra = {}) => ({
