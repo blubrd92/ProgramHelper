@@ -61,10 +61,29 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const p4 = await store.createProgram(roster, { name: 'Paper Lantern Craft', date: day(-3), capacity: 15 });
   await signUp(p4, kids.slice(28, 36));
 
-  // 5. Read to a Dog, next week (the slot grid screen comes later).
+  // 5. Read to a Dog, next week: two dogs, one confirmed, a few slots taken, one child waiting.
   const dog = await store.createProgram(templates['starter-read-to-a-dog'], { name: 'Read to a Dog', date: day(8) });
+  await store.addTrack(dog);
+  await store.setTrack(dog, 't1', { volunteerId: 'vol1', status: 'confirmed' });
+  await store.setTrack(dog, 't2', { volunteerId: 'vol2' });
   await store.addSignup(dog, { ...kids[36], slot: 0, trackId: 't1' });
   await store.addSignup(dog, { ...kids[37], slot: 2, trackId: 't1' });
+  await store.addSignup(dog, { ...kids[38], slot: 0, trackId: 't2' });
+  await store.addSignup(dog, { ...kids[39], slot: 1, trackId: 't2' });
+  await store.addSignup(dog, { ...kids[40] });
+
+  // 6. A monthly book club that met yesterday: duplicate it to try "same children next month".
+  const club = await store.createProgram(templates['starter-book-club'], { name: 'Graphic Novel Book Club', date: day(-1) });
+  await signUp(club, kids.slice(4, 11));
+
+  // 7. A finished, closed-out program so the stats page has final numbers.
+  const done = await store.createProgram(roster, { name: 'Shadow Puppet Theater', date: day(-6), capacity: 12 });
+  await signUp(done, kids.slice(20, 30));
+  const doneKids = await store.listSignups(done);
+  for (const [i, s] of doneKids.entries()) await store.setAttendance(done, s.id, i < 7 ? 'attended' : 'noShow');
+  await store.addSignup(done, { childFirst: 'Juno', walkIn: true, age: 6 });
+  await store.addSignup(done, { childFirst: 'Arlo', walkIn: true, age: 8 });
+  await store.closeOut(done, { children: 9, teens: 1, adults: 7 });
 });
 
 console.log('\nPractice data loaded.');
