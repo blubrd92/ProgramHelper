@@ -6,6 +6,11 @@ import { setDb, runPurge } from './data/store.js';
 import { h, clear, toast, showError, field } from './ui.js';
 import { renderHome } from './views/home.js';
 import { renderProgram } from './views/program.js';
+import { renderReminders } from './views/reminders.js';
+import { renderStats } from './views/stats.js';
+import { renderTemplates } from './views/templates.js';
+import { renderVolunteers } from './views/volunteers.js';
+import { renderSettings } from './views/settings.js';
 
 setDb(db);
 
@@ -41,6 +46,7 @@ onAuthStateChanged(auth, async (user) => {
   const badge = document.getElementById('roleBadge');
   badge.textContent = (ctx.isAdmin ? 'Admin' : 'Staff') + (isEmulator ? ' · practice data' : '');
   badge.className = ctx.isAdmin ? 'badge badge-admin' : 'badge';
+  for (const a of topbar.querySelectorAll('[data-admin]')) a.hidden = !ctx.isAdmin;
 
   // Layer one of the wipe: every time someone opens the app, delete
   // everything that is past its date. See runPurge in data/store.js.
@@ -58,8 +64,18 @@ function route() {
   clear(main);
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   try {
-    if (parts[0] === 'program' && parts[1]) cleanup = renderProgram(main, ctx, parts[1]);
+    const adminOnly = { templates: renderTemplates, volunteers: renderVolunteers, settings: renderSettings };
+    if (parts[0] === 'program' && parts[1] && parts[2] === 'reminders') cleanup = renderReminders(main, ctx, parts[1]);
+    else if (parts[0] === 'program' && parts[1]) cleanup = renderProgram(main, ctx, parts[1]);
+    else if (parts[0] === 'stats') cleanup = renderStats(main, ctx);
+    else if (adminOnly[parts[0]] && ctx.isAdmin) cleanup = adminOnly[parts[0]](main, ctx);
     else cleanup = renderHome(main, ctx);
+    // Mark the current page in the top bar.
+    const here = adminOnly[parts[0]] || parts[0] === 'stats' ? parts[0] : 'home';
+    for (const a of topbar.querySelectorAll('nav a')) {
+      if (a.dataset.nav === here) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    }
   } catch (e) {
     showError(e);
   }

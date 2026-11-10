@@ -62,7 +62,14 @@ service cloud.firestore {
     // Volunteer roster: first name, last initial, dog's name, note.
     match /volunteers/{id} {
       allow read: if isStaff();
-      allow write: if isAdmin();
+      // Only these four short fields: there is no place to put contact info.
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['firstName', 'lastInitial', 'dogName', 'note'])
+        && request.resource.data.firstName is string && request.resource.data.firstName.size() <= 30
+        && request.resource.data.lastInitial is string && request.resource.data.lastInitial.size() <= 1
+        && request.resource.data.dogName is string && request.resource.data.dogName.size() <= 30
+        && request.resource.data.note is string && request.resource.data.note.size() <= 100;
+      allow delete: if isAdmin();
     }
 
     // Programs hold dates, settings, seat numbers and anonymous counts.
@@ -73,9 +80,11 @@ service cloud.firestore {
       allow update: if isAdmin() || (isStaff()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'seatsTaken', 'seats', 'waitlist', 'needsContact', 'counts',
-          'tracks', 'volunteerIds', 'status', 'stats', 'headcount', 'closedAt'
+          'tracks', 'volunteerIds', 'status', 'stats', 'headcount', 'closedAt',
+          'signupTotal'
         ]));
-      allow delete: if false;
+      // Only the admin, and only a program that never had a sign-up.
+      allow delete: if isAdmin() && resource.data.signupTotal == 0;
 
       // Sign-ups: the only place personal data is stored.
       match /signups/{sid} {

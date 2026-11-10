@@ -191,3 +191,83 @@ export function sameCounts(a, b) {
 export function fillReminder(text, vars) {
   return String(text || '').replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
 }
+
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Tidy and check a template typed by the admin. Returns { data, errors: [..] }. */
+export function cleanTemplate(input) {
+  const errors = [];
+  const str = (v, max) => String(v ?? '').trim().slice(0, max);
+  const kind = input.kind === 'slotted' ? 'slotted' : 'roster';
+  const data = {
+    name: str(input.name, 80),
+    kind,
+    audience: str(input.audience, 20) || 'children',
+    capacity: 0,
+    startTime: str(input.startTime, 5),
+    endTime: str(input.endTime, 5),
+    slots: [],
+    defaultTracks: 0,
+    trackLabel: '',
+    fields: {
+      age: !!input.fields?.age, email: !!input.fields?.email,
+      caregiver: !!input.fields?.caregiver, notes: !!input.fields?.notes,
+    },
+    volunteers: !!input.volunteers,
+    recurring: !!input.recurring,
+    reminder: { en: str(input.reminder?.en, 2000), es: str(input.reminder?.es, 2000) },
+  };
+  if (!data.name) errors.push('Give the template a name.');
+  if (!TIME_RE.test(data.startTime) || !TIME_RE.test(data.endTime)) errors.push('Enter a start time and an end time.');
+  else if (data.endTime <= data.startTime) errors.push('The end time must be after the start time.');
+
+  if (kind === 'roster') {
+    const cap = Math.round(Number(input.capacity));
+    if (!Number.isFinite(cap) || cap < 1 || cap > 200) errors.push('Seats should be a number from 1 to 200.');
+    else data.capacity = cap;
+  } else {
+    const slots = Array.isArray(input.slots) ? input.slots : [];
+    if (slots.length < 1 || slots.length > 12) errors.push('A slotted program needs between 1 and 12 time slots.');
+    for (const sl of slots.slice(0, 12)) {
+      const start = str(sl?.start, 5);
+      const end = str(sl?.end, 5);
+      if (!TIME_RE.test(start) || !TIME_RE.test(end) || end <= start) {
+        errors.push('Each time slot needs a start time and a later end time.');
+        break;
+      }
+      data.slots.push({ start, end });
+    }
+    const tracks = Math.round(Number(input.defaultTracks));
+    if (!Number.isFinite(tracks) || tracks < 1 || tracks > 4) errors.push('Columns (volunteer teams) should be a number from 1 to 4.');
+    else data.defaultTracks = tracks;
+    data.trackLabel = str(input.trackLabel, 20);
+    data.volunteers = true; // each column is a volunteer team
+  }
+  return { data, errors };
+}
+
+/** Volunteer: first name, last initial, dog's name, short note. No contact info. */
+export function cleanVolunteer(input) {
+  const str = (v, max) => String(v ?? '').trim().slice(0, max);
+  const data = {
+    firstName: str(input.firstName, 30),
+    lastInitial: str(input.lastInitial, 1).toUpperCase(),
+    dogName: str(input.dogName, 30),
+    note: str(input.note, 100),
+  };
+  const errors = [];
+  if (!data.firstName) errors.push("Enter the volunteer's first name.");
+  return { data, errors };
+}
+
+/** 'Fern Q. with Biscuit' */
+export function volunteerLabel(v) {
+  if (!v) return 'Volunteer no longer on the list';
+  const name = v.lastInitial ? `${v.firstName} ${v.lastInitial}.` : v.firstName;
+  return v.dogName ? `${name} with ${v.dogName}` : name;
+}
+
+/** '10:30 AM to 10:40 AM' */
+export function slotLabel(slot) {
+  return slot ? `${formatTime(slot.start)} to ${formatTime(slot.end)}` : '';
+}

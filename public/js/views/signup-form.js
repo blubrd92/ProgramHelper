@@ -18,8 +18,12 @@ import { cleanSignupInput, childLabel } from '../data/model.js';
  *   prefill     values to start with (used by "same contact")
  *   walkIn      true for a walk-in (only the first name is required)
  *   onSaved     optional: called with { id, status } after a new sign-up is saved
+ *   seat        slotted programs: { slot, trackId } of the time slot being booked
+ *   seatLabel   slotted programs: words for that slot, shown at the top
+ *   onAnother   slotted programs: called with the contact details when staff
+ *               choose to add a sibling (they pick the sibling's slot next)
  */
-export function openSignupForm({ program, getProgram, existing, prefill, walkIn, onSaved }) {
+export function openSignupForm({ program, getProgram, existing, prefill, walkIn, onSaved, seat, seatLabel, onAnother }) {
   const isEdit = !!existing;
   const isWalkIn = isEdit ? !!existing.walkIn : !!walkIn;
   const latest = () => (getProgram ? getProgram() : program) || program;
@@ -82,8 +86,15 @@ export function openSignupForm({ program, getProgram, existing, prefill, walkIn,
     // Order matters: this is the Tab order.
     const nameRow = h('div', { class: 'field-row name-row' }, firstField, initialField);
     const parts = [];
-    if (!isEdit && !isWalkIn && (latest().seatsTaken || 0) >= (latest().capacity || 0)) {
+    const slotted = latest().kind === 'slotted';
+    if (!slotted && !isEdit && !isWalkIn && (latest().seatsTaken || 0) >= (latest().capacity || 0)) {
       parts.push(h('p', { class: 'alert form-notice', role: 'status' }, 'This program is full. This child will go on the waitlist.'));
+    }
+    if (slotted && !isEdit && seat) {
+      parts.push(h('p', { class: 'form-notice' }, h('strong', {}, `Time slot: ${seatLabel || ''}`)));
+    }
+    if (slotted && !isEdit && !seat && !isWalkIn) {
+      parts.push(h('p', { class: 'alert form-notice', role: 'status' }, 'No time slot chosen. This child will go on the waitlist.'));
     }
     if (isWalkIn) {
       parts.push(h('p', { class: 'muted' }, 'Only the first name is needed for a walk-in. The other boxes are optional.'));
@@ -127,6 +138,8 @@ export function openSignupForm({ program, getProgram, existing, prefill, walkIn,
         languageOther: languageOther.value,
         notes: notes.value,
         walkIn: isWalkIn,
+        slot: seat ? seat.slot : null,
+        trackId: seat ? seat.trackId : null,
       };
 
       const { data, errors } = cleanSignupInput(input, latest());
@@ -177,17 +190,24 @@ export function openSignupForm({ program, getProgram, existing, prefill, walkIn,
 
   // ---------------------------------------------- "saved" screen for siblings
   function showDone(message, data) {
-    const another = h('button', { type: 'button', class: 'btn' }, 'Add another child with the same contact');
+    const another = h('button', { type: 'button', class: 'btn' },
+      onAnother ? 'Add a sibling (pick their time slot next)' : 'Add another child with the same contact');
     const done = h('button', { type: 'button', class: 'btn btn-primary' }, 'Done');
     another.addEventListener('click', () => {
       // Keep the contact details; start the child's own boxes empty.
-      showForm({
+      const contact = {
         caregiverFirst: data.caregiverFirst,
         phone: data.phone,
         email: data.email,
         language: data.language,
         languageOther: data.languageOther,
-      });
+      };
+      if (onAnother) {
+        dlg.close();
+        onAnother(contact);
+      } else {
+        showForm(contact);
+      }
     });
     done.addEventListener('click', () => dlg.close());
     box.replaceChildren(

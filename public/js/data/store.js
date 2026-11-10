@@ -7,13 +7,13 @@
 //   * Program documents get numbers and IDs only, never names.
 
 import {
-  collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, orderBy, limit,
+  collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit,
   onSnapshot, runTransaction, writeBatch, Timestamp,
 } from 'firebase/firestore';
 import {
   STATUS, holdsSeat, clampRetention, DEFAULT_RETENTION_DAYS, localDateTime,
   computePurgeAfter, computePurgeCeiling, seatKey, cleanSignupInput, computeCounts,
-  sameCounts, toDate,
+  sameCounts, toDate, cleanTemplate, cleanVolunteer,
 } from './model.js';
 import { STARTER_TEMPLATES } from './starter-templates.js';
 
@@ -56,37 +56,72 @@ export async function saveRetentionDays(days) {
   return redateAllSignups(retentionDays);
 }
 
+/**
+ * Set one sign-up's wipe date (and its ticket's). If the wanted date has
+ * already passed, the record is set to expire in five minutes, and the next
+ * purge removes it. Returns true when something changed.
+ */
+async function setPurgeDate(pid, sid, wantedDate, currentTimestamp) {
+  const soon = Date.now() + 5 * 60 * 1000;
+  const wanted = Timestamp.fromMillis(Math.max(toDate(wantedDate).getTime(), soon));
+  if (currentTimestamp && Math.abs(wanted.toMillis() - currentTimestamp.toMillis()) < 1000) return false;
+  if (currentTimestamp && currentTimestamp.toMillis() <= soon && wanted.toMillis() <= soon) return false;
+  const batch = writeBatch(db);
+  batch.update(signupRef(pid, sid), { purgeAfter: wanted });
+  batch.update(ticketRef(sid), { purgeAfter: wanted });
+  try {
+    await batch.commit();
+    return true;
+  } catch (e) {
+    return false; // it expired a moment ago; the purge removes it
+  }
+}
+
 async function redateAllSignups(retentionDays) {
   const tickets = await getDocs(collection(db, 'purgeQueue'));
-  const programEnds = new Map();
+  const programs = new Map();
+  const seriesIds = new Set();
   let changed = 0;
   for (const t of tickets.docs) {
     const { programId, purgeAfter } = t.data();
-    if (!programEnds.has(programId)) {
-      const p = await getDoc(programRef(programId));
-      programEnds.set(programId, p.exists() ? (p.data().retainFrom || p.data().endsAt) : null);
+    if (!programs.has(programId)) programs.set(programId, await getProgram(programId));
+    const program = programs.get(programId);
+    if (!program) continue;
+    if (program.seriesId) {
+      seriesIds.add(program.seriesId); // series are handled together, below
+      continue;
     }
-    const end = programEnds.get(programId);
-    if (!end) continue;
-    const wanted = Timestamp.fromDate(computePurgeAfter(end, retentionDays));
-    if (wanted.toMillis() === purgeAfter.toMillis()) continue;
-    const batch = writeBatch(db);
-    if (wanted.toMillis() <= Date.now() + 5 * 60 * 1000) {
-      // Under the new, shorter period this sign-up is already overdue.
-      // Wipe it now (the admin is allowed to delete a sign-up early).
-      await freezeStatsIfOpen(programId);
-      batch.delete(signupRef(programId, t.id));
-      batch.delete(t.ref);
-    } else {
-      batch.update(signupRef(programId, t.id), { purgeAfter: wanted });
-      batch.update(t.ref, { purgeAfter: wanted });
-    }
-    try {
-      await batch.commit();
-      changed += 1;
-    } catch (e) {
-      // A sign-up that expired a moment ago cannot be updated. The purge removes it.
-    }
+    if (await setPurgeDate(programId, t.id, computePurgeAfter(program.endsAt, retentionDays), purgeAfter)) changed += 1;
+  }
+  for (const seriesId of seriesIds) changed += await syncSeriesRetention(seriesId, retentionDays);
+  return changed;
+}
+
+/**
+ * Recurring series (for example a monthly book club).
+ *
+ * A child carried from one session to the next has the same `seriesKey` on
+ * each of their sign-ups. Their wipe clock starts after the LAST session
+ * they are still registered for, so every one of their records in the series
+ * gets that same wipe date. A child added by hand to a single session has no
+ * seriesKey and simply follows that session's own date.
+ */
+export async function syncSeriesRetention(seriesId, retentionDays) {
+  const days = retentionDays ?? await getRetentionDays();
+  const snap = await getDocs(query(collection(db, 'programs'), where('seriesId', '==', seriesId)));
+  const rows = [];
+  for (const p of snap.docs.map(withId)) {
+    for (const s of await listSignups(p.id)) rows.push({ p, s });
+  }
+  const lastEnd = new Map();
+  for (const { p, s } of rows) {
+    if (!s.seriesKey || s.status === STATUS.cancelled) continue;
+    lastEnd.set(s.seriesKey, Math.max(lastEnd.get(s.seriesKey) || 0, p.endsAt.toMillis()));
+  }
+  let changed = 0;
+  for (const { p, s } of rows) {
+    const base = Math.max(p.endsAt.toMillis(), (s.seriesKey && lastEnd.get(s.seriesKey)) || 0);
+    if (await setPurgeDate(p.id, s.id, computePurgeAfter(base, days), s.purgeAfter)) changed += 1;
   }
   return changed;
 }
@@ -109,6 +144,44 @@ export async function installStarterTemplates() {
     added += 1;
   }
   return added;
+}
+
+/**
+ * Admin only. Save a template. Pass id = null to make a new one (that is
+ * also how "duplicate" works: load one, change the name, save with no id).
+ */
+export async function saveTemplate(id, input) {
+  const { data, errors } = cleanTemplate(input);
+  if (errors.length) throw new UserError(errors[0]);
+  const ref = id ? doc(db, 'templates', id) : doc(collection(db, 'templates'));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+/** Admin only. Programs already made from the template are not affected. */
+export async function deleteTemplate(id) {
+  await deleteDoc(doc(db, 'templates', id));
+}
+
+// -------------------------------------------------------------- volunteers
+
+export async function listVolunteers() {
+  const snap = await getDocs(collection(db, 'volunteers'));
+  return snap.docs.map(withId).sort((a, b) => a.firstName.localeCompare(b.firstName));
+}
+
+/** Admin only. First name, last initial, dog's name, short note. No contact info. */
+export async function saveVolunteer(id, input) {
+  const { data, errors } = cleanVolunteer(input);
+  if (errors.length) throw new UserError(errors[0]);
+  const ref = id ? doc(db, 'volunteers', id) : doc(collection(db, 'volunteers'));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+/** Admin only. */
+export async function deleteVolunteer(id) {
+  await deleteDoc(doc(db, 'volunteers', id));
 }
 
 // ---------------------------------------------------------------- programs
@@ -142,8 +215,6 @@ export async function createProgram(template, { name, date, startTime, endTime, 
     endTime: end,
     startsAt: Timestamp.fromDate(startsAt),
     endsAt: Timestamp.fromDate(endsAt),
-    // retainFrom: the moment the retention clock starts for this program.
-    retainFrom: Timestamp.fromDate(endsAt),
     purgeCeiling: Timestamp.fromDate(computePurgeCeiling(endsAt)),
     seriesId: null,
     capacity: Number(capacity ?? template.capacity) || 0,
@@ -156,6 +227,8 @@ export async function createProgram(template, { name, date, startTime, endTime, 
     recurring: !!template.recurring,
     reminder: { ...template.reminder },
     status: 'open',
+    // signupTotal only ever goes up. A program can be deleted only while it is 0.
+    signupTotal: 0,
     seatsTaken: 0,
     seats: {},
     waitlist: [],
@@ -229,7 +302,7 @@ export async function addSignup(pid, input) {
     const firstError = Object.values(errors)[0];
     if (firstError) throw new UserError(firstError);
 
-    const update = {};
+    const update = { signupTotal: (program.signupTotal || 0) + 1 };
     let status;
     let slot = null;
     let trackId = null;
@@ -241,6 +314,7 @@ export async function addSignup(pid, input) {
         const track = (program.tracks || []).find((t) => t.id === input.trackId);
         if (!track || !program.slots[input.slot]) throw new UserError('That time slot does not exist.');
         if (program.seats?.[key]) throw new UserError('That time slot was just taken. Pick another.');
+        if (track.status === 'calledOut') throw new UserError('That volunteer has called out. Pick a slot in another column.');
         slot = Number(input.slot);
         trackId = input.trackId;
         update.seats = { ...(program.seats || {}), [key]: newRef.id };
@@ -260,7 +334,7 @@ export async function addSignup(pid, input) {
     }
     if (status === STATUS.waitlisted) update.waitlist = [...(program.waitlist || []), newRef.id];
 
-    const purgeAfter = Timestamp.fromDate(computePurgeAfter(program.retainFrom || program.endsAt, retentionDays));
+    const purgeAfter = Timestamp.fromDate(computePurgeAfter(program.endsAt, retentionDays));
     tx.set(newRef, {
       ...data,
       status,
@@ -274,7 +348,7 @@ export async function addSignup(pid, input) {
       purgeAfter,
     });
     tx.set(ticketRef(newRef.id), { programId: pid, purgeAfter });
-    if (Object.keys(update).length) tx.update(programRef(pid), update);
+    tx.update(programRef(pid), update);
     // waitlistPosition: the child's place in line (1 = next), or null.
     const waitlistPosition = status === STATUS.waitlisted ? update.waitlist.length : null;
     return { id: newRef.id, status, waitlistPosition };
@@ -333,8 +407,10 @@ export async function cancelSignup(pid, sid) {
       else seatsTaken -= 1;
 
       // Find the first waitlisted child whose record is still there.
+      const freedTrack = key ? (program.tracks || []).find((t) => t.id === s.trackId) : null;
+      const canRefill = !key || (freedTrack && freedTrack.status !== 'calledOut');
       let next = null;
-      while (waitlist.length && !next) {
+      while (canRefill && waitlist.length && !next) {
         const candidateId = waitlist.shift();
         const cSnap = await tx.get(signupRef(pid, candidateId));
         if (cSnap.exists() && cSnap.data().status === STATUS.waitlisted) next = cSnap;
@@ -366,10 +442,12 @@ export async function cancelSignup(pid, sid) {
       trackId: null,
     });
     tx.update(programRef(pid), update);
-    return { promotedId };
+    return { promotedId, seriesId: program.seriesId || null };
   });
   await refreshCounts(pid);
-  return result;
+  // In a series, cancelling can shorten how long the child's records are kept.
+  if (result.seriesId) await syncSeriesRetention(result.seriesId);
+  return { promotedId: result.promotedId };
 }
 
 /** Mark a seated child attended or no-show, or put them back to registered. */
@@ -407,6 +485,171 @@ export async function markContacted(pid, sid) {
 /** Tick or untick "reminded". The tick lives on the sign-up and is wiped with it. */
 export async function setReminded(pid, sid, reminded) {
   await updateDoc(signupRef(pid, sid), { reminded: !!reminded });
+}
+
+/**
+ * Move a child to a free time slot (slotted programs). Also used to seat a
+ * waitlisted child or an unseated walk-in. A child seated from the waitlist
+ * is flagged "needs contact", like an automatic promotion.
+ */
+export async function moveSignup(pid, sid, slot, trackId) {
+  await runTransaction(db, async (tx) => {
+    const pSnap = await tx.get(programRef(pid));
+    const program = pSnap.exists() ? withId(pSnap) : null;
+    requireOpen(program);
+    const sSnap = await tx.get(signupRef(pid, sid));
+    if (!sSnap.exists()) throw new UserError('That sign-up no longer exists.');
+    const s = sSnap.data();
+    if (s.status === STATUS.cancelled) throw new UserError('That sign-up is cancelled.');
+    const track = (program.tracks || []).find((t) => t.id === trackId);
+    if (!track || !program.slots?.[slot]) throw new UserError('That time slot does not exist.');
+    if (track.status === 'calledOut') throw new UserError('That volunteer has called out. Pick a slot in another column.');
+    const key = seatKey(slot, trackId);
+    const seats = { ...(program.seats || {}) };
+    if (seats[key] === sid) return;
+    if (seats[key]) throw new UserError('That time slot was just taken. Pick another.');
+    if (s.slot != null) delete seats[seatKey(s.slot, s.trackId)];
+    seats[key] = sid;
+
+    const update = { seats };
+    const change = { slot: Number(slot), trackId };
+    if (s.status === STATUS.waitlisted) {
+      change.status = STATUS.registered;
+      change.needsContact = true;
+      update.waitlist = (program.waitlist || []).filter((id) => id !== sid);
+      update.needsContact = (program.needsContact || 0) + 1;
+    }
+    tx.update(signupRef(pid, sid), change);
+    tx.update(programRef(pid), update);
+  });
+  await refreshCounts(pid);
+}
+
+// ------------------------------------------------------ tracks and volunteers
+
+/** Add a track (for Read to a Dog: a second dog) to one session. */
+export async function addTrack(pid) {
+  await runTransaction(db, async (tx) => {
+    const pSnap = await tx.get(programRef(pid));
+    const program = pSnap.exists() ? withId(pSnap) : null;
+    requireOpen(program);
+    const tracks = [...(program.tracks || [])];
+    if (tracks.length >= 4) throw new UserError('A session can have at most four columns.');
+    let n = tracks.length + 1;
+    while (tracks.some((t) => t.id === `t${n}`)) n += 1;
+    tracks.push({ id: `t${n}`, volunteerId: null, status: 'scheduled' });
+    tx.update(programRef(pid), { tracks });
+  });
+}
+
+/** Remove a track. Refused while children are still booked in it. */
+export async function removeTrack(pid, trackId) {
+  await runTransaction(db, async (tx) => {
+    const pSnap = await tx.get(programRef(pid));
+    const program = pSnap.exists() ? withId(pSnap) : null;
+    requireOpen(program);
+    if ((program.tracks || []).length <= 1) throw new UserError('A session needs at least one column.');
+    const booked = Object.keys(program.seats || {}).filter((k) => k.endsWith(`_${trackId}`)).length;
+    if (booked) {
+      throw new UserError(`${booked} ${booked === 1 ? 'child is' : 'children are'} still booked in this column. Move or cancel them first.`);
+    }
+    tx.update(programRef(pid), { tracks: program.tracks.filter((t) => t.id !== trackId) });
+  });
+}
+
+/**
+ * Change a track's volunteer and/or status.
+ * changes: { volunteerId?, status? } with status 'scheduled' | 'confirmed' | 'calledOut'.
+ */
+export async function setTrack(pid, trackId, changes) {
+  await runTransaction(db, async (tx) => {
+    const pSnap = await tx.get(programRef(pid));
+    const program = pSnap.exists() ? withId(pSnap) : null;
+    requireOpen(program);
+    if (changes.status && !['scheduled', 'confirmed', 'calledOut'].includes(changes.status)) {
+      throw new UserError('Unknown volunteer status.');
+    }
+    const tracks = (program.tracks || []).map((t) => (t.id !== trackId ? t : {
+      ...t,
+      volunteerId: 'volunteerId' in changes ? (changes.volunteerId || null) : t.volunteerId,
+      status: changes.status || t.status,
+    }));
+    tx.update(programRef(pid), { tracks });
+  });
+}
+
+/** Roster programs that track volunteers: which volunteers are helping. */
+export async function setProgramVolunteers(pid, volunteerIds) {
+  requireOpen(await getProgram(pid));
+  await updateDoc(programRef(pid), { volunteerIds: [...new Set(volunteerIds)].slice(0, 20) });
+}
+
+// ------------------------------------------------- duplicate and delete programs
+
+/**
+ * Admin only. Make next month's program from this one: same settings, new
+ * date. The two are linked as a series.
+ *
+ * carryRoster (roster programs only): also sign up the same children, in the
+ * same order. This only works while the old program's sign-ups still exist,
+ * that is, before its wipe date. Returns { id, carried }.
+ */
+export async function duplicateProgram(pid, { date, name, carryRoster }) {
+  const source = await getProgram(pid);
+  if (!source) throw new UserError('That program no longer exists.');
+  const seriesId = source.seriesId || source.id;
+  const template = {
+    ...source,
+    id: source.templateId,
+    defaultTracks: (source.tracks || []).length,
+  };
+  const newId = await createProgram(template, {
+    name: name || source.name, date, startTime: source.startTime, endTime: source.endTime, capacity: source.capacity,
+  });
+
+  // Link the series, and let every session in it keep records as long as the
+  // newest session allows (the security rules check this ceiling).
+  const members = (await getDocs(query(collection(db, 'programs'), where('seriesId', '==', seriesId)))).docs.map(withId);
+  const created = await getProgram(newId);
+  const all = [...members.filter((p) => p.id !== source.id), source, created];
+  const ceiling = Timestamp.fromMillis(Math.max(...all.map((p) => p.purgeCeiling.toMillis())));
+  for (const p of all) {
+    const change = {};
+    if (p.seriesId !== seriesId) change.seriesId = seriesId;
+    if (p.purgeCeiling.toMillis() !== ceiling.toMillis()) change.purgeCeiling = ceiling;
+    if (p.id === newId) change.tracks = (source.tracks || []).map((t) => ({ id: t.id, volunteerId: t.volunteerId || null, status: 'scheduled' }));
+    if (Object.keys(change).length) await updateDoc(programRef(p.id), change);
+  }
+
+  let carried = 0;
+  if (carryRoster && source.kind === 'roster') {
+    const signups = (await listSignups(pid)).filter((s) => !s.walkIn && s.status !== STATUS.cancelled);
+    const seated = signups.filter((s) => holdsSeat(s.status))
+      .sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
+    const waiting = (source.waitlist || []).map((id) => signups.find((s) => s.id === id)).filter(Boolean);
+    for (const s of [...seated, ...waiting]) {
+      const seriesKey = s.seriesKey || s.id;
+      if (!s.seriesKey) await updateDoc(signupRef(pid, s.id), { seriesKey });
+      await addSignup(newId, {
+        childFirst: s.childFirst, childInitial: s.childInitial, age: s.age, caregiverFirst: s.caregiverFirst,
+        phone: s.phone, email: s.email, language: s.language, languageOther: s.languageOther, notes: s.notes,
+        seriesKey,
+      });
+      carried += 1;
+    }
+    if (carried) await syncSeriesRetention(seriesId);
+  }
+  return { id: newId, carried };
+}
+
+/** Admin only. Only a program that never had a sign-up can be deleted. */
+export async function deleteProgram(pid) {
+  const program = await getProgram(pid);
+  if (!program) return;
+  if ((program.signupTotal || 0) > 0) {
+    throw new UserError('This program has had sign-ups, so it cannot be deleted. Its numbers are part of the stats.');
+  }
+  await deleteDoc(programRef(pid));
 }
 
 // ------------------------------------------------------- counts and close-out

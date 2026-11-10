@@ -12,10 +12,11 @@ before(async () => {
   await t.raw(async (d) => {
     await setDoc(doc(d, 'settings/main'), { retentionDays: 14 });
     await setDoc(doc(d, 'templates/t1'), { name: 'Fake template' });
-    await setDoc(doc(d, 'volunteers/v1'), { firstName: 'Fern', lastInitial: 'Q', dogName: 'Biscuit' });
+    await setDoc(doc(d, 'volunteers/v1'), { firstName: 'Fern', lastInitial: 'Q', dogName: 'Biscuit', note: '' });
     await setDoc(doc(d, 'programs/p1'), {
-      name: 'Fake Workshop', status: 'open', seatsTaken: 1, capacity: 20, purgeCeiling: ts(30 * DAY),
+      name: 'Fake Workshop', status: 'open', seatsTaken: 1, signupTotal: 3, capacity: 20, purgeCeiling: ts(30 * DAY),
     });
+    await setDoc(doc(d, 'programs/empty'), { name: 'Fake Mistake', status: 'open', signupTotal: 0, purgeCeiling: ts(30 * DAY) });
     await setDoc(doc(d, 'programs/p1/signups/live'), fakeSignup({ purgeAfter: ts(5 * DAY) }));
     await setDoc(doc(d, 'purgeQueue/live'), { programId: 'p1', purgeAfter: ts(5 * DAY) });
     const gone = ts(-1 * DAY);
@@ -83,7 +84,20 @@ test('staff cannot create programs or edit their setup; they can update day-to-d
   await assertFails(updateDoc(doc(t.staff, 'programs/p1'), { capacity: 99 }));
   await assertFails(updateDoc(doc(t.staff, 'programs/p1'), { purgeCeiling: ts(900 * DAY) }));
   await assertSucceeds(updateDoc(doc(t.staff, 'programs/p1'), { seatsTaken: 2, counts: { registered: 2 } }));
+});
+
+test('only the admin can delete a program, and only one that never had a sign-up', async () => {
+  await assertFails(deleteDoc(doc(t.staff, 'programs/empty')));
   await assertFails(deleteDoc(doc(t.admin, 'programs/p1')));
+  await assertSucceeds(deleteDoc(doc(t.admin, 'programs/empty')));
+});
+
+test('a volunteer record has no room for contact info', async () => {
+  const v = { firstName: 'Moss', lastInitial: 'T', dogName: '', note: '' };
+  await assertSucceeds(setDoc(doc(t.admin, 'volunteers/v3'), v));
+  await assertFails(setDoc(doc(t.admin, 'volunteers/v4'), { ...v, phone: '415-555-0100' }));
+  await assertFails(setDoc(doc(t.admin, 'volunteers/v5'), { ...v, lastInitial: 'Thorne' }));
+  await assertFails(setDoc(doc(t.admin, 'volunteers/v6'), { ...v, note: 'x'.repeat(101) }));
 });
 
 // ---- the wipe, layer two

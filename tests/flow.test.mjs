@@ -224,3 +224,121 @@ test('a slotted program: seats, a taken slot, waitlist, promotion into the freed
   const promoted = (await store.listSignups(p4)).find((s) => s.id === w.id);
   assert.deepEqual([promoted.slot, promoted.trackId, promoted.needsContact], [0, 't1', true]);
 });
+
+test('tracks: add a second dog, assign volunteers, call out, move a child, remove a track', async () => {
+  asAdmin();
+  const template = (await store.listTemplates()).find((x) => x.id === 'starter-read-to-a-dog');
+  const p = await store.createProgram(template, { name: 'Fake Read to a Dog 2', date: inDays(7) });
+  const vol = await store.saveVolunteer(null, { firstName: 'Fern', lastInitial: 'q', dogName: 'Biscuit', note: '' });
+  asStaff();
+  await assert.rejects(store.saveVolunteer(null, { firstName: 'Moss' }));
+  await store.addTrack(p);
+  await store.setTrack(p, 't2', { volunteerId: vol, status: 'confirmed' });
+  const a = await store.addSignup(p, { ...kid('Heron', 'G'), slot: 1, trackId: 't2' });
+  await assert.rejects(store.removeTrack(p, 't2'), /still booked/);
+  const w = await store.addSignup(p, kid('Swift', 'H'));
+
+  await store.setTrack(p, 't2', { status: 'calledOut' });
+  let prog = await store.getProgram(p);
+  assert.deepEqual(prog.tracks[1], { id: 't2', volunteerId: vol, status: 'calledOut' });
+  await assert.rejects(store.addSignup(p, { ...kid('Owl', 'I'), slot: 0, trackId: 't2' }), /called out/);
+
+  // Move the affected child to the other dog; seat the waitlisted child by hand.
+  await store.moveSignup(p, a.id, 1, 't1');
+  await store.moveSignup(p, w.id, 2, 't1');
+  prog = await store.getProgram(p);
+  assert.deepEqual(prog.seats, { '1_t1': a.id, '2_t1': w.id });
+  assert.deepEqual(prog.waitlist, []);
+  assert.equal(prog.needsContact, 1, 'a child seated from the waitlist is flagged');
+  await store.removeTrack(p, 't2');
+  assert.equal((await store.getProgram(p)).tracks.length, 1);
+  await assert.rejects(store.removeTrack(p, 't1'), /at least one/);
+});
+
+test('a freed slot in a called-out column is not refilled from the waitlist', async () => {
+  asAdmin();
+  const template = (await store.listTemplates()).find((x) => x.id === 'starter-read-to-a-dog');
+  const p = await store.createProgram(template, { name: 'Fake Read to a Dog 3', date: inDays(7) });
+  asStaff();
+  const a = await store.addSignup(p, { ...kid('Crane', 'J'), slot: 0, trackId: 't1' });
+  await store.addSignup(p, kid('Stork', 'K'));
+  await store.setTrack(p, 't1', { status: 'calledOut' });
+  assert.equal((await store.cancelSignup(p, a.id)).promotedId, null);
+});
+
+test('admin can delete a program only while it has never had a sign-up', async () => {
+  asAdmin();
+  const template = (await store.listTemplates()).find((x) => x.id === 'starter-roster');
+  const empty = await store.createProgram(template, { name: 'Fake Mistake', date: inDays(9) });
+  const used = await store.createProgram(template, { name: 'Fake Used', date: inDays(9) });
+  asStaff();
+  const s = await store.addSignup(used, kid('Teal', 'L'));
+  await store.cancelSignup(used, s.id);
+  await assert.rejects(store.deleteProgram(empty));
+  asAdmin();
+  await assert.rejects(store.deleteProgram(used), /cannot be deleted/);
+  await store.deleteProgram(empty);
+  assert.equal(await store.getProgram(empty), null);
+});
+
+test('templates: admin saves, duplicates and deletes; bad input is refused', async () => {
+  asAdmin();
+  const base = (await store.listTemplates()).find((x) => x.id === 'starter-roster');
+  const copy = await store.saveTemplate(null, { ...base, name: 'Fake Lego Club', capacity: 12 });
+  assert.equal((await store.listTemplates()).find((x) => x.id === copy).capacity, 12);
+  await assert.rejects(store.saveTemplate(null, { ...base, name: '' }), /name/);
+  await assert.rejects(store.saveTemplate(null, { ...base, capacity: 0 }), /Seats/);
+  await store.deleteTemplate(copy);
+  asStaff();
+  await assert.rejects(store.saveTemplate(null, { ...base, name: 'Staff Try' }));
+});
+
+test('series: duplicating with the roster links the children and extends their wipe date', async () => {
+  asAdmin();
+  await store.saveRetentionDays(14);
+  const template = (await store.listTemplates()).find((x) => x.id === 'starter-book-club');
+  const sept = await store.createProgram(template, { name: 'Fake Book Club', date: inDays(1), capacity: 3 });
+  asStaff();
+  const a = await store.addSignup(sept, kid('Plum', 'M'));
+  const b = await store.addSignup(sept, kid('Fig', 'N'));
+  const oneOff = await store.addSignup(sept, kid('Pear', 'O'));
+  await store.cancelSignup(sept, oneOff.id);
+  await store.addSignup(sept, { childFirst: 'Kiwi', walkIn: true });
+  await assert.rejects(store.duplicateProgram(sept, { date: inDays(29), carryRoster: true }), 'staff cannot duplicate');
+
+  asAdmin();
+  const { id: oct, carried } = await store.duplicateProgram(sept, { date: inDays(29), carryRoster: true });
+  assert.equal(carried, 2, 'cancelled children and walk-ins are not carried');
+  const [pSept, pOct] = [await store.getProgram(sept), await store.getProgram(oct)];
+  assert.equal(pSept.seriesId, sept);
+  assert.equal(pOct.seriesId, sept);
+  assert.equal(pOct.seatsTaken, 2);
+  assert.equal(pSept.purgeCeiling.toMillis(), pOct.purgeCeiling.toMillis());
+
+  asStaff();
+  const octEnd = pOct.endsAt.toMillis();
+  const septEnd = pSept.endsAt.toMillis();
+  const byName = async (pid) => Object.fromEntries((await store.listSignups(pid)).map((s) => [s.childFirst, s]));
+  let s1 = await byName(sept);
+  assert.equal(s1.Plum.purgeAfter.toMillis(), octEnd + 14 * DAY, 'carried child: clock starts after the last session');
+  assert.equal(s1.Fig.purgeAfter.toMillis(), octEnd + 14 * DAY);
+  assert.equal(s1.Pear.purgeAfter.toMillis(), septEnd + 14 * DAY, 'one-off child keeps the session clock');
+  assert.equal(s1.Kiwi.purgeAfter.toMillis(), septEnd + 14 * DAY);
+  const ticket = await getDoc(doc(t.staff, 'purgeQueue', s1.Plum.id));
+  assert.equal(ticket.data().purgeAfter.toMillis(), octEnd + 14 * DAY, 'ticket moves with the sign-up');
+
+  // Plum drops out of October: the September record goes back to its own clock.
+  const s2 = await byName(oct);
+  await store.cancelSignup(oct, s2.Plum.id);
+  s1 = await byName(sept);
+  assert.equal(s1.Plum.purgeAfter.toMillis(), septEnd + 14 * DAY);
+  assert.equal(s1.Fig.purgeAfter.toMillis(), octEnd + 14 * DAY);
+
+  // A retention change respects the series too.
+  asAdmin();
+  await store.saveRetentionDays(7);
+  s1 = await byName(sept);
+  assert.equal(s1.Fig.purgeAfter.toMillis(), octEnd + 7 * DAY);
+  assert.equal(s1.Plum.purgeAfter.toMillis(), septEnd + 7 * DAY);
+  await store.saveRetentionDays(14);
+});
