@@ -445,7 +445,7 @@ export function renderProgram(container, ctx, programId) {
       { head: 'Child', cell: (s) => h('strong', {}, childLabel(s)) },
       { head: 'Age', show: !!f.age, cell: (s) => (s.age == null ? '' : String(s.age)) },
       { head: 'Caregiver', show: !!f.caregiver, cell: (s) => s.caregiverFirst || '' },
-      { head: 'Phone', cell: (s) => s.phone || '' },
+      { head: 'Phone', cell: (s) => h('span', { class: 'nowrap' }, s.phone || '') },
       { head: 'Email', show: !!f.email, cell: (s) => h('span', { class: 'email-cell' }, s.email || '') },
       { head: 'Language', cell: (s) => languageText(s) },
       { head: 'Notes', show: !!f.notes, cell: (s) => s.notes || '' },

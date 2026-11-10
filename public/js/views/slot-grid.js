@@ -304,7 +304,7 @@ export function renderSlotGrid({ program, signups, volunteers, closed, helpers }
       { head: 'Child', cell: (s) => h('strong', {}, childLabel(s)) },
       { head: 'Age', show: !!fields.age, cell: (s) => (s.age == null ? '' : String(s.age)) },
       { head: 'Caregiver', show: !!fields.caregiver, cell: (s) => s.caregiverFirst || '' },
-      { head: 'Phone', cell: (s) => s.phone || '' },
+      { head: 'Phone', cell: (s) => h('span', { class: 'nowrap' }, s.phone || '') },
       { head: 'Email', show: !!fields.email, cell: (s) => h('span', { class: 'email-cell' }, s.email || '') },
       { head: 'Language', cell: (s) => helpers.languageText(s) },
       { head: 'Notes', show: !!fields.notes, cell: (s) => s.notes || '' },

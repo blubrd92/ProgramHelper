@@ -3,6 +3,8 @@
 //
 // SPANISH REVIEW NEEDED (Javi): every `es` reminder below is a draft.
 // Placeholders: {program} {date} {time} and, for slotted programs, {child} {slot}.
+// The wording addresses the family as "ustedes" throughout, and the slotted
+// message is phrased so it reads correctly for one child or for siblings.
 
 const ROSTER_EN = `Hello from the San Rafael Public Library Children's Room!
 
@@ -17,21 +19,21 @@ We look forward to seeing you!`;
 
 const ROSTER_ES = `¡Saludos de la Sala Infantil de la Biblioteca Pública de San Rafael!
 
-Le recordamos que su niño o niña tiene un lugar reservado en {program}.
+Les recordamos que su niño o niña tiene un lugar reservado en {program}.
 
 Fecha: {date}
 Hora: {time}
 
-Si sus planes han cambiado, por favor responda a este correo o llámenos para que podamos ofrecer el lugar a una familia en la lista de espera.
+Si sus planes han cambiado, por favor respondan a este correo o llámennos para que podamos ofrecer el lugar a una familia en la lista de espera.
 
 ¡Les esperamos!`;
 
 const SLOTTED_EN = `Hello from the San Rafael Public Library Children's Room!
 
-This is a reminder that {child} has a reading time reserved for {program}.
+This is a reminder about the reading time reserved for {child} at {program}.
 
 Date: {date}
-Your time: {slot}
+Time: {slot}
 
 Please arrive a few minutes early. If your plans have changed, please reply to this email or call us so we can offer the time to another child.
 
@@ -39,12 +41,12 @@ We look forward to seeing you!`;
 
 const SLOTTED_ES = `¡Saludos de la Sala Infantil de la Biblioteca Pública de San Rafael!
 
-Le recordamos que {child} tiene un turno de lectura reservado para {program}.
+Les recordamos el turno de lectura reservado para {child} en {program}.
 
 Fecha: {date}
-Hora de su turno: {slot}
+Hora: {slot}
 
-Por favor lleguen unos minutos antes. Si sus planes han cambiado, responda a este correo o llámenos para que podamos ofrecer el turno a otro niño o niña.
+Por favor lleguen unos minutos antes. Si sus planes han cambiado, respondan a este correo o llámennos para que podamos ofrecer el turno a otro niño o niña.
 
 ¡Les esperamos!`;
 

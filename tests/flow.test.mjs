@@ -342,3 +342,45 @@ test('series: duplicating with the roster links the children and extends their w
   assert.equal(s1.Plum.purgeAfter.toMillis(), septEnd + 7 * DAY);
   await store.saveRetentionDays(14);
 });
+
+test('purge works the same for a time-slot program and a series; only numbers remain', async () => {
+  asAdmin();
+  const templates = await store.listTemplates();
+  const dog = await store.createProgram(templates.find((x) => x.id === 'starter-read-to-a-dog'), { name: 'Fake Dog Day', date: inDays(2) });
+  const club = await store.createProgram(templates.find((x) => x.id === 'starter-book-club'), { name: 'Fake Club', date: inDays(2) });
+  asStaff();
+  const a = await store.addSignup(dog, { ...kid('Zinnia', 'P'), slot: 0, trackId: 't1' });
+  await store.addSignup(dog, kid('Yarrow', 'Q'));
+  await store.setAttendance(dog, a.id, 'attended');
+  await store.setReminded(dog, a.id, true);
+  await store.addSignup(club, kid('Xanthe', 'R'));
+  asAdmin();
+  const { id: club2 } = await store.duplicateProgram(club, { date: inDays(20), carryRoster: true });
+  asStaff();
+  await store.closeOut(dog, { children: 1, teens: 0, adults: 1 });
+
+  const gone = Timestamp.fromMillis(Date.now() - DAY);
+  await t.raw(async (d) => {
+    for (const pidX of [dog, club, club2]) {
+      for (const s of (await getDocs(collection(d, `programs/${pidX}/signups`))).docs) {
+        await updateDoc(s.ref, { purgeAfter: gone });
+        await updateDoc(doc(d, 'purgeQueue', s.id), { purgeAfter: gone });
+      }
+    }
+  });
+  assert.equal(await store.runPurge(), 4);
+  await t.raw(async (d) => {
+    const dump = [];
+    for (const name of ['programs', 'settings', 'templates', 'volunteers', 'purgeQueue']) {
+      for (const snap of (await getDocs(collection(d, name))).docs) dump.push(JSON.stringify(snap.data()));
+    }
+    for (const pidX of [dog, club, club2]) assert.equal((await getDocs(collection(d, `programs/${pidX}/signups`))).size, 0);
+    for (const personal of ['Zinnia', 'Yarrow', 'Xanthe', '415-555-0142', 'zinnia@', 'dragons']) {
+      assert.ok(!dump.join('\n').includes(personal), `"${personal}" survived the purge`);
+    }
+    const p = (await getDoc(doc(d, 'programs', dog))).data();
+    assert.deepEqual([p.stats.registered, p.stats.attended, p.stats.waitlisted], [1, 1, 1]);
+    assert.deepEqual(p.headcount, { children: 1, teens: 0, adults: 1 });
+    assert.equal((await getDoc(doc(d, 'programs', club))).data().stats.registered, 1);
+  });
+});

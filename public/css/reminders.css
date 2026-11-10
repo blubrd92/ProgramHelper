@@ -1,0 +1,10 @@
+/* Reminders screen. Only what app.css does not already provide. */
+.reminders-page section { margin-top: 1.6rem; }
+.reminder-card { margin: 1rem 0; }
+.reminder-card h3, .reminder-card h4 { margin-top: 0; }
+.reminder-box { width: 100%; font: inherit; font-size: .95rem; line-height: 1.45; resize: vertical; background: #f8f9fb; }
+.bcc-note { background: var(--warn-bg); color: var(--warn); border-radius: var(--radius); padding: .5rem .8rem; margin: .5rem 0 1rem; }
+.reminded-list li { display: flex; align-items: center; gap: .8rem; }
+.reminded-check { margin: 0; }
+.reminded-check label { margin: 0; }
+.progress-line { font-weight: 600; margin-top: 1.6rem; }

@@ -28,7 +28,7 @@
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
 .table-wrap table { min-width: 36rem; }
 .email-cell { overflow-wrap: anywhere; }
-.row-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.row-actions { display: flex; gap: .4rem; flex-wrap: wrap; min-width: 16.5rem; }
 /* The pressed Attended / No-show button. The Status column also says the word, so colour is not the only signal. */
 .row-actions .btn[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
 
