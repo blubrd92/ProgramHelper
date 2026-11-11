@@ -135,10 +135,11 @@ If GitHub says Pages is not available, the repository is private on a plan that 
 1. **"This login has no access."** The account has no `users` document, or its Document ID is not that account's UID, or `role` is misspelled. It must be exactly `staff` or `admin`, lower case.
 2. **"This login is not allowed to do that."** A staff login tried an admin action, or the published rules are older than the app. Republish `firestore.rules`.
 3. **Sign-in fails for everyone on the live site, even with the right password.** The emails in `js/firebase-config.js` (`loginEmails`) do not match the accounts in Firebase > Authentication > Users. Or: The site's address is missing from Authentication > Settings > Authorized domains, or `js/firebase-config.js` points at the wrong project.
-4. **A program page will not load, or the roster is empty when it should not be.** If the program ended more than the retention period ago, the names are gone on purpose; the numbers are on the Stats page. Otherwise press F12, open the Console tab, and look for a red line. A line mentioning "index" includes a link that creates the missing index in one click.
-5. **Everything stops working mid-day with "quota" errors.** The free plan allows about 50,000 reads and 20,000 writes a day, far more than a children's desk should use. Check Firestore > Usage in the console. Service returns the next day (the allowance resets around midnight Pacific).
-6. **Numbers look wrong on Stats.** A program marked "Not final" has not been closed out, so its numbers can still change. The definitions are printed on the Stats page and live in `computeCounts` in `js/data/model.js`.
-7. **Stuck?** Run `npm test`. If the tests pass, the rules and the core logic are sound and the problem is in a screen or in the Firebase setup.
+4. **A program page says "not allowed" but the home page works.** The computer's clock is probably wrong by more than ten minutes. The database only hands over a list of sign-ups when it can be sure none are expired, and it judges that by its own clock. Fix the computer's date and time (set it to automatic) and reload.
+5. **A program page will not load, or the roster is empty when it should not be.** If the program ended more than the retention period ago, the names are gone on purpose; the numbers are on the Stats page. Otherwise press F12, open the Console tab, and look for a red line. A line mentioning "index" includes a link that creates the missing index in one click.
+6. **Everything stops working mid-day with "quota" errors.** The free plan allows about 50,000 reads and 20,000 writes a day, far more than a children's desk should use. Check Firestore > Usage in the console. Service returns the next day (the allowance resets around midnight Pacific).
+7. **Numbers look wrong on Stats.** A program marked "Not final" has not been closed out, so its numbers can still change. The definitions are printed on the Stats page and live in `computeCounts` in `js/data/model.js`.
+8. **Stuck?** Run `npm test`. If the tests pass, the rules and the core logic are sound and the problem is in a screen or in the Firebase setup.
 
 ## Things worth knowing
 

@@ -255,6 +255,22 @@ export async function listPrograms(fromDate, toDateStr) {
   return snap.docs.map(withId);
 }
 
+/**
+ * The "not yet expired" line used when listing sign-ups.
+ *
+ * The security rules only allow a list that cannot include expired records,
+ * and they judge that by the SERVER's clock. A request takes a moment to
+ * arrive, and a desk computer's clock can run a little slow, so asking for
+ * "later than right now" can look to the server like "later than a moment
+ * ago", and it refuses the whole list. Asking for "later than ten minutes
+ * from now" is always on the safe side. The only cost: a sign-up drops off
+ * the screen ten minutes before its wipe date, which is weeks after the program.
+ */
+const CLOCK_MARGIN_MS = 10 * 60 * 1000;
+function liveCutoff() {
+  return Timestamp.fromMillis(Date.now() + CLOCK_MARGIN_MS);
+}
+
 /** Live updates for one program. Returns a function that stops listening. */
 export function watchProgram(pid, onChange, onError) {
   return onSnapshot(programRef(pid), (snap) => onChange(snap.exists() ? withId(snap) : null), onError);
@@ -266,12 +282,12 @@ export function watchProgram(pid, onChange, onError) {
  * records.
  */
 export function watchSignups(pid, onChange, onError) {
-  const q = query(signupsCol(pid), where('purgeAfter', '>', Timestamp.now()));
+  const q = query(signupsCol(pid), where('purgeAfter', '>', liveCutoff()));
   return onSnapshot(q, (snap) => onChange(snap.docs.map(withId)), onError);
 }
 
 export async function listSignups(pid) {
-  const q = query(signupsCol(pid), where('purgeAfter', '>', Timestamp.now()));
+  const q = query(signupsCol(pid), where('purgeAfter', '>', liveCutoff()));
   return (await getDocs(q)).docs.map(withId);
 }
 
