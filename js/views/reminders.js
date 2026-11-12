@@ -10,7 +10,7 @@
 //   * Copying happens only when staff click a Copy button.
 //   * A group message never contains a child's name.
 //   * Text goes on the page with h() only (plain text, never HTML).
-import { h, clear, toast, showError } from '../ui.js';
+import { h, clear, toast, showError, add } from '../ui.js';
 import { watchProgram, watchSignups, setReminded } from '../data/store.js';
 import { childLabel, formatTime, formatDateLong, toDate } from '../data/model.js';
 import {
@@ -128,7 +128,7 @@ export function renderReminders(container, ctx, programId) {
     // Remember which control had focus, so our own redraws do not drop it.
     const focusedKey = container.contains(document.activeElement)
       ? document.activeElement.dataset?.key : null;
-    clear(container).append(build());
+    add(clear(container), build());
     if (focusedKey) {
       const again = [...container.querySelectorAll('[data-key]')].find((el) => el.dataset.key === focusedKey);
       again?.focus();
@@ -182,14 +182,14 @@ export function renderReminders(container, ctx, programId) {
     const withEmail = families.filter((f) => f.email);
     const section = h('section', { 'aria-labelledby': 'emailHead' }, h('h2', { id: 'emailHead' }, 'Email'));
     if (!withEmail.length) {
-      section.append(h('p', { class: 'muted' }, 'No family gave an email address.'));
+      add(section, h('p', { class: 'muted' }, 'No family gave an email address.'));
       return section;
     }
     const lists = emailLists(withEmail);
     for (const g of GROUPS) {
       const members = withEmail.filter((f) => groupOf(f) === g.id);
       if (!members.length) continue;
-      section.append(program.kind === 'slotted'
+      add(section, program.kind === 'slotted'
         ? slottedGroup(g, members, closed)
         : rosterGroup(g, members, lists[g.id], closed));
     }
@@ -211,11 +211,11 @@ export function renderReminders(container, ctx, programId) {
       // Tell staff which languages are in this group.
       const counts = new Map();
       for (const f of members) counts.set(languageName(f), (counts.get(languageName(f)) || 0) + 1);
-      card.append(h('p', {}, 'These families get the English message. Their languages: ',
+      add(card, h('p', {}, 'These families get the English message. Their languages: ',
         [...counts].map(([name, n]) => `${name}: ${plural(n, 'family', 'families')}`).join(', '), '.'));
     }
 
-    card.append(
+    add(card,
       textBox(boxId, 'Email addresses', addresses.join('; '), 3),
       h('div', { class: 'action-row' }, copyButton(boxId, 'Copy addresses', 'Addresses', `copyaddr-${g.id}`)),
       h('p', { class: 'bcc-note' }, h('strong', {}, 'Paste into BCC'), ' so families do not see each other\'s addresses.'),
@@ -223,7 +223,7 @@ export function renderReminders(container, ctx, programId) {
       h('div', { class: 'action-row' }, copyButton(msgId, 'Copy message', 'Message', `copymsg-${g.id}`)));
 
     // A compact checklist of the families in this group.
-    card.append(
+    add(card,
       h('h4', {}, 'Reminded'),
       h('ul', { class: 'plain reminded-list' }, members.map((f) => h('li', { class: 'reminded-item' },
         remindedBox(f, closed, f.key),
@@ -240,13 +240,13 @@ export function renderReminders(container, ctx, programId) {
   function slottedGroup(g, members, closed) {
     const wrap = h('div', { class: 'reminder-group' },
       h('h3', {}, `${g.heading}: ${plural(members.length, 'family', 'families')}`));
-    if (g.id === 'other') wrap.append(h('p', { class: 'muted' }, 'These families get the English message. Their language is shown on each card.'));
+    if (g.id === 'other') add(wrap, h('p', { class: 'muted' }, 'These families get the English message. Their language is shown on each card.'));
     for (const f of members) {
       const lang = messageLanguage(f.language);
       const headId = `fam-h-${f.key}`;
       const addrId = `addr-${f.key}`;
       const msgId = `msg-${f.key}`;
-      wrap.append(h('div', { class: 'card reminder-card', role: 'group', 'aria-labelledby': headId },
+      add(wrap, h('div', { class: 'card reminder-card', role: 'group', 'aria-labelledby': headId },
         h('h4', { id: headId }, f.caregiverFirst || 'Caregiver not entered'),
         h('p', {}, f.children.map((c) => `${childLabel(c)} at ${slotTimes({ children: [c] }, 'en') || 'no time slot'}`).join('; '),
           g.id === 'other' ? ` · Language: ${languageName(f)}` : ''),
@@ -268,9 +268,9 @@ export function renderReminders(container, ctx, programId) {
     const section = h('section', { 'aria-labelledby': 'callHead' }, h('h2', { id: 'callHead' }, 'Call list'));
     const noContact = families.filter((f) => !f.phone && !f.email).length;
     if (!rows.length) {
-      section.append(h('p', { class: 'muted' }, 'Every family gave an email address.'));
+      add(section, h('p', { class: 'muted' }, 'Every family gave an email address.'));
     } else {
-      section.append(h('div', { class: 'table-wrap' }, h('table', { 'aria-labelledby': 'callHead' },
+      add(section, h('div', { class: 'table-wrap' }, h('table', { 'aria-labelledby': 'callHead' },
         h('thead', {}, h('tr', {},
           h('th', { scope: 'col' }, 'Reminded'),
           h('th', { scope: 'col' }, 'Child(ren)'),
@@ -287,7 +287,7 @@ export function renderReminders(container, ctx, programId) {
           slotted ? h('td', {}, slotTimes(f, 'en')) : null))))));
     }
     if (noContact) {
-      section.append(h('p', { class: 'muted' },
+      add(section, h('p', { class: 'muted' },
         `${plural(noContact, 'family has', 'families have')} no email address and no phone number, so they are not listed above.`));
     }
     return section;

@@ -3,7 +3,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebas
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, isEmulator, loginEmails } from './firebase.js';
 import { setDb, runPurge } from './data/store.js';
-import { h, clear, toast, showError, field } from './ui.js';
+import { h, clear, toast, showError, field, add } from './ui.js';
 import { renderHome } from './views/home.js';
 import { renderProgram } from './views/program.js';
 import { renderReminders } from './views/reminders.js';
@@ -124,13 +124,13 @@ function showLogin() {
       password.select();
     }
   });
-  clear(main).append(form);
+  add(clear(main), form);
   password.focus();
 }
 
 function showNoRole(user) {
   topbar.hidden = true;
-  clear(main).append(h('div', { class: 'card login' },
+  add(clear(main), h('div', { class: 'card login' },
     h('h1', {}, 'This login has no access'),
     h('p', {}, `The account ${user.email || ''} is signed in, but it has not been set up as staff or admin.`),
     h('p', { class: 'muted' }, 'See "Create or reset the two logins" in the README.'),

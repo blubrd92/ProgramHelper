@@ -1,12 +1,12 @@
 // Admin screen: the short list of volunteers who help with programs.
 // First name and last initial only. No contact details, ever.
-import { h, clear, toast, showError, openDialog, confirmDialog, field } from '../ui.js';
+import { h, clear, toast, showError, openDialog, confirmDialog, field, add } from '../ui.js';
 import { listVolunteers, saveVolunteer, deleteVolunteer } from '../data/store.js';
 
 export function renderVolunteers(container, ctx) {
   let alive = true;
   const body = h('div', { class: 'admin-screen' }, h('p', { class: 'loading' }, 'Loading volunteers…'));
-  container.append(body);
+  add(container, body);
 
   async function load() {
     try {
@@ -21,7 +21,7 @@ export function renderVolunteers(container, ctx) {
   const nameOf = (v) => (v.lastInitial ? `${v.firstName} ${v.lastInitial}.` : v.firstName);
 
   function draw(list) {
-    clear(body).append(
+    add(clear(body),
       h('div', { class: 'page-head' },
         h('h1', {}, 'Volunteers'),
         h('button', { type: 'button', class: 'btn btn-primary', onclick: () => openEditor(null) }, 'Add volunteer')),

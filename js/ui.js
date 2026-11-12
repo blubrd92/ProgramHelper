@@ -22,6 +22,19 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
+/**
+ * Put things inside an element, skipping anything empty.
+ * Always use this instead of el.append(): the browser's own append() turns
+ * an empty value into the visible word "null".
+ */
+export function add(el, ...children) {
+  for (const c of children.flat(Infinity)) {
+    if (c == null || c === false) continue;
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+
 export function clear(el) {
   el.replaceChildren();
   return el;

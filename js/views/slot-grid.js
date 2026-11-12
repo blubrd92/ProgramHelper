@@ -10,7 +10,7 @@
 //
 // Privacy: names and contact details are only put on the page with h()
 // (which inserts plain text). Nothing is saved in the browser.
-import { h, toast, openDialog, field } from '../ui.js';
+import { h, toast, openDialog, field, add } from '../ui.js';
 import { addTrack, removeTrack, setTrack, moveSignup } from '../data/store.js';
 import { STATUS, childLabel, slotLabel, volunteerLabel, seatKey, toDate } from '../data/model.js';
 
@@ -92,7 +92,7 @@ export function renderSlotGrid({ program, signups, volunteers, closed, helpers, 
     goBack.addEventListener('click', () => dlg.close());
 
     if (!free.length) {
-      body.append(
+      add(body,
         h('p', {}, 'There are no free time slots.'),
         h('div', { class: 'dialog-actions' }, goBack));
       goBack.focus();
@@ -108,7 +108,7 @@ export function renderSlotGrid({ program, signups, volunteers, closed, helpers, 
       field('New time', select, { id: `move-seat-${s.id}` }),
       error,
       h('div', { class: 'dialog-actions' }, goBack, submit));
-    body.append(form);
+    add(body, form);
     select.focus();
 
     form.addEventListener('submit', async (ev) => {

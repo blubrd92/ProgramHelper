@@ -1,6 +1,6 @@
 // Main screen: programs that need a family contacted, upcoming programs,
 // recent past programs, and (admin) the "new program" form.
-import { h, clear, toast, showError, openDialog, field } from '../ui.js';
+import { h, clear, toast, showError, openDialog, field, add } from '../ui.js';
 import { listPrograms, listTemplates, installStarterTemplates, createProgram } from '../data/store.js';
 import { formatDateLong, formatTime, localDateString } from '../data/model.js';
 
@@ -9,7 +9,7 @@ const DAY = 24 * 60 * 60 * 1000;
 export function renderHome(container, ctx) {
   let alive = true;
   const body = h('div', { class: 'home' }, h('p', { class: 'loading' }, 'Loading programs…'));
-  container.append(body);
+  add(container, body);
 
   async function load() {
     try {
@@ -28,7 +28,7 @@ export function renderHome(container, ctx) {
     const past = programs.filter((p) => p.date < today).reverse();
     const flagged = programs.filter((p) => (p.needsContact || 0) > 0);
 
-    clear(body).append(
+    add(clear(body),
       h('div', { class: 'page-head' },
         h('h1', {}, 'Programs'),
         ctx.isAdmin ? h('button', { type: 'button', class: 'btn btn-primary', onclick: newProgram }, 'New program') : null),

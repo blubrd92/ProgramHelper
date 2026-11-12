@@ -1,7 +1,7 @@
 // Stats page: per-program numbers and totals for a date range.
 // It reads PROGRAM documents only (never sign-ups), so it still works after
 // children's names have been wiped. All the arithmetic is in data/stats.js.
-import { h, clear, showError, field, setFieldError } from '../ui.js';
+import { h, clear, showError, field, setFieldError, add } from '../ui.js';
 import { listPrograms } from '../data/store.js';
 import { localDateString, formatDateLong } from '../data/model.js';
 import { programNumbers, totals, ageBreakdown, toCsv } from '../data/stats.js';
@@ -49,7 +49,7 @@ export function renderStats(container, ctx) {
     quick);
 
   const results = h('div', { class: 'stats-results' });
-  container.append(h('div', { class: 'stats' }, h('h1', {}, 'Stats'), form, results));
+  add(container, h('div', { class: 'stats' }, h('h1', {}, 'Stats'), form, results));
 
   async function show() {
     setFieldError(fromInput, '');
@@ -62,7 +62,7 @@ export function renderStats(container, ctx) {
     if (from > to) { rangeError.textContent = 'The "From" date must be on or before the "To" date.'; return; }
 
     const mine = ++loadId;
-    clear(results).append(h('p', { class: 'loading' }, 'Loading stats…'));
+    add(clear(results), h('p', { class: 'loading' }, 'Loading stats…'));
     try {
       const programs = await listPrograms(from, to);
       if (!alive || mine !== loadId) return;
@@ -71,7 +71,7 @@ export function renderStats(container, ctx) {
       draw(programs, from, to);
     } catch (e) {
       if (!alive || mine !== loadId) return;
-      clear(results).append(h('p', { class: 'alert', role: 'alert' }, 'The stats could not be loaded. Check the internet connection and press Show to try again.'));
+      add(clear(results), h('p', { class: 'alert', role: 'alert' }, 'The stats could not be loaded. Check the internet connection and press Show to try again.'));
       showError(e);
     }
   }
@@ -82,7 +82,7 @@ export function renderStats(container, ctx) {
 
   function draw(programs, from, to) {
     if (!programs.length) {
-      clear(results).append(h('p', { class: 'card muted' }, `No programs between ${formatDateLong(from)} and ${formatDateLong(to)}.`));
+      add(clear(results), h('p', { class: 'card muted' }, `No programs between ${formatDateLong(from)} and ${formatDateLong(to)}.`));
       return;
     }
     const t = totals(programs);
@@ -108,7 +108,7 @@ export function renderStats(container, ctx) {
         h('p', {}, 'Waitlisted: children still on the waitlist who never got a seat.'),
         h('p', {}, 'Total attendance: attended plus walk-ins.')));
 
-    clear(results).append(
+    add(clear(results),
       totalsCard,
       programTable(programs, t),
       agesSection(programs),

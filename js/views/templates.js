@@ -1,7 +1,7 @@
 // Admin screen: list, create, edit, duplicate and delete program templates.
 // A template holds the settings for a kind of program. Programs copy the
 // template when they are made, so editing a template never changes them.
-import { h, clear, toast, showError, openDialog, confirmDialog, field } from '../ui.js';
+import { h, clear, toast, showError, openDialog, confirmDialog, field, add } from '../ui.js';
 import {
   listTemplates, saveTemplate, deleteTemplate, installStarterTemplates,
 } from '../data/store.js';
@@ -13,7 +13,7 @@ const MAX_SLOTS = 12;
 export function renderTemplates(container, ctx) {
   let alive = true;
   const body = h('div', { class: 'admin-screen' }, h('p', { class: 'loading' }, 'Loading templates…'));
-  container.append(body);
+  add(container, body);
 
   async function load() {
     try {
@@ -39,7 +39,7 @@ export function renderTemplates(container, ctx) {
   }
 
   function draw(templates) {
-    clear(body).append(
+    add(clear(body),
       h('div', { class: 'page-head' },
         h('h1', {}, 'Templates'),
         h('button', { type: 'button', class: 'btn btn-primary', onclick: () => openEditor(null, null) }, 'New template')),
@@ -155,7 +155,7 @@ export function renderTemplates(container, ctx) {
           type: 'button', class: 'btn btn-small slot-remove',
           onclick: () => { row.remove(); updateSlotButtons(); addSlotBtn.focus(); },
         }, 'Remove'));
-      slotRows.append(row);
+      add(slotRows, row);
       updateSlotButtons();
     }
 

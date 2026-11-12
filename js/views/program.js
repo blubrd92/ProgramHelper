@@ -6,7 +6,7 @@
 //
 // Privacy: names and contact details are only ever put on the page with
 // h() (which inserts plain text). Nothing is saved in the browser.
-import { h, clear, toast, showError, openDialog, confirmDialog } from '../ui.js';
+import { h, clear, toast, showError, openDialog, confirmDialog, add } from '../ui.js';
 import {
   watchProgram, watchSignups, setAttendance, cancelSignup, markContacted, closeOut,
   listVolunteers, setProgramVolunteers, duplicateProgram, deleteProgram,
@@ -293,7 +293,7 @@ export function renderProgram(container, ctx, programId) {
     try { caret = active && active.selectionStart != null ? [active.selectionStart, active.selectionEnd] : null; } catch (e) { caret = null; }
 
     const page = build();
-    clear(container).append(page);
+    add(clear(container), page);
 
     if (active && active.isConnected) {
       active.focus();
@@ -455,13 +455,13 @@ export function renderProgram(container, ctx, programId) {
     if (closed) {
       const ft = followThrough(c);
       const hc = program.headcount;
-      box.append(
+      add(box,
         h('p', {}, `Follow-through rate (attended out of registered): ${ft == null ? 'n/a' : `${Math.round(ft * 100)}%`}`));
       if (hc) {
         const show = (v) => (v == null ? 'not entered' : String(v));
-        box.append(h('p', {}, `Head count in the room: children ${show(hc.children)}, teens ${show(hc.teens)}, adults ${show(hc.adults)}`));
+        add(box, h('p', {}, `Head count in the room: children ${show(hc.children)}, teens ${show(hc.teens)}, adults ${show(hc.adults)}`));
       }
-      box.append(h('p', { class: 'muted small' }, 'This program is closed out. These numbers are frozen.'));
+      add(box, h('p', { class: 'muted small' }, 'This program is closed out. These numbers are frozen.'));
     }
     return box;
   }

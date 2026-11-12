@@ -1,12 +1,12 @@
 // Admin screen: how long names and contact details are kept.
-import { h, clear, toast, showError, confirmDialog, field, setFieldError } from '../ui.js';
+import { h, clear, toast, showError, confirmDialog, field, setFieldError, add } from '../ui.js';
 import { getRetentionDays, saveRetentionDays } from '../data/store.js';
 
 export function renderSettings(container, ctx) {
   let alive = true;
   let current = null; // the saved number of days
   const body = h('div', { class: 'admin-screen' }, h('p', { class: 'loading' }, 'Loading settings…'));
-  container.append(body);
+  add(container, body);
 
   async function load() {
     try {
@@ -59,7 +59,7 @@ export function renderSettings(container, ctx) {
       }
     });
 
-    clear(body).append(
+    add(clear(body),
       h('div', { class: 'page-head' }, h('h1', {}, 'Settings')),
       h('section', { class: 'card', 'aria-labelledby': 'retHead' },
         h('h2', { id: 'retHead' }, 'How long names and contact details are kept'),
