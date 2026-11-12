@@ -121,7 +121,9 @@ table { border-collapse: collapse; width: 100%; background: var(--card); }
 th, td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
 th { font-size: .88rem; color: var(--muted); font-weight: 700; }
 
-.topbar nav a[aria-current="page"] { background: rgba(255,255,255,.22); font-weight: 700; }
+/* The current page is marked with a lighter background and an underline.
+   No bold: bold text is wider, which made the other links shift sideways. */
+.topbar nav a[aria-current="page"] { background: rgba(255,255,255,.22); box-shadow: inset 0 -3px 0 #ffb000; }
 .check-row { display: flex; align-items: center; gap: .6rem; margin: .4rem 0; min-height: 38px; }
 .check-row label { font-weight: 400; }
 .action-row { display: flex; gap: .6rem; flex-wrap: wrap; margin: .8rem 0; }

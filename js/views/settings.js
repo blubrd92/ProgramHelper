@@ -64,10 +64,7 @@ export function renderSettings(container, ctx) {
       h('section', { class: 'card', 'aria-labelledby': 'retHead' },
         h('h2', { id: 'retHead' }, 'How long names and contact details are kept'),
         h('p', {}, "Children's names, caregiver names, phone numbers, emails and notes are removed automatically this many days after a program ends. For a child signed up across a repeating series, the days are counted from their last session. Attendance numbers are kept; they contain no names."),
-        form),
-      h('section', { class: 'card', 'aria-labelledby': 'loginHead' },
-        h('h2', { id: 'loginHead' }, 'The two logins'),
-        h('p', {}, 'The staff and admin logins are created and reset in the Firebase console. The steps are in the README file.')));
+        form));
   }
 
   load();
