@@ -17,7 +17,7 @@ import { STATUS, childLabel, slotLabel, volunteerLabel, seatKey, toDate } from '
 const MAX_TRACKS = 4; // the store also enforces this
 const STATUS_WORDS = { scheduled: 'Scheduled', confirmed: 'Confirmed', calledOut: 'Called out' };
 
-export function renderSlotGrid({ program, signups, volunteers, closed, helpers }) {
+export function renderSlotGrid({ program, signups, volunteers, closed, helpers, entry }) {
   const tracks = program.tracks || [];
   const slots = program.slots || [];
   const fields = program.fields || {};
@@ -185,6 +185,10 @@ export function renderSlotGrid({ program, signups, volunteers, closed, helpers }
     const where = `${slotLabel(slot)}, ${trackTitle(track)}`;
     if (isCalledOut(track)) return h('td', { class: cls }, h('span', { class: 'grid-note' }, 'Not available'));
     if (closed) return h('td', { class: cls }, h('span', { class: 'muted' }, 'Empty'));
+    // The slot being filled right now: show the entry boxes inside the cell.
+    if (entry?.openSeat && entry.openSeat.slot === slotIndex && entry.openSeat.trackId === track.id) {
+      return h('td', { class: `${cls} grid-entry-open` }, entry.el);
+    }
     return h('td', { class: cls },
       btn('Add child', `Add child at ${where}`, `seat-${slotIndex}-${track.id}`,
         () => helpers.addToSlot(slotIndex, track.id), { big: true }),

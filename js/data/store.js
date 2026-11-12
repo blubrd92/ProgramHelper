@@ -22,6 +22,7 @@ let db = null;
 /** Called once at startup (and by tests) with the Firestore instance. */
 export function setDb(instance) {
   db = instance;
+  retentionCache = null;
 }
 
 const programRef = (pid) => doc(db, 'programs', pid);
@@ -40,9 +41,15 @@ export class UserError extends Error {
 
 // ---------------------------------------------------------------- settings
 
+// The retention period is remembered for a minute so that adding a child
+// does not have to look it up every single time.
+let retentionCache = null; // { days, at }
 export async function getRetentionDays() {
+  if (retentionCache && Date.now() - retentionCache.at < 60 * 1000) return retentionCache.days;
   const snap = await getDoc(doc(db, 'settings', 'main'));
-  return snap.exists() ? clampRetention(snap.data().retentionDays) : DEFAULT_RETENTION_DAYS;
+  const days = snap.exists() ? clampRetention(snap.data().retentionDays) : DEFAULT_RETENTION_DAYS;
+  retentionCache = { days, at: Date.now() };
+  return days;
 }
 
 /**
@@ -53,6 +60,7 @@ export async function getRetentionDays() {
 export async function saveRetentionDays(days) {
   const retentionDays = clampRetention(days);
   await setDoc(doc(db, 'settings', 'main'), { retentionDays });
+  retentionCache = { days: retentionDays, at: Date.now() };
   return redateAllSignups(retentionDays);
 }
 

@@ -47,3 +47,24 @@
 .radio-label { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; cursor: pointer; }
 .form-notice { margin-top: 0; font-weight: 600; }
 .saved-message { font-size: 1.15rem; font-weight: 700; color: var(--ok); }
+
+/* the always-open entry boxes */
+.entry-strip { margin: 1rem 0; border: 2px solid var(--brand); }
+.entry-title { margin: 0 0 .6rem; font-size: 1.1rem; }
+.entry-boxes { display: flex; flex-wrap: wrap; gap: .5rem .7rem; align-items: flex-start; }
+.entry-boxes .field { margin: 0; flex: 0 1 9rem; min-width: 6.5rem; }
+.entry-boxes .field.entry-grow { flex: 1 1 9rem; }
+.entry-boxes .field.entry-grow2 { flex: 2 1 13rem; }
+.entry-boxes .field:has(.entry-initial) { flex: 0 0 5.5rem; min-width: 5.5rem; }
+.entry-boxes .field:has(.entry-age) { flex: 0 0 4.5rem; min-width: 4.5rem; }
+.entry-boxes label { font-size: .88rem; }
+.entry-walkin { margin: .5rem 0 0; }
+.entry-notice { margin: .3rem 0 0; font-weight: 600; color: var(--warn); }
+.entry-notice:empty { display: none; }
+.entry-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .6rem; }
+.entry-hint { margin: .5rem 0 0; }
+.entry-cell .entry-boxes .field { flex: 1 1 100%; }
+.entry-cell .entry-boxes .field:has(.entry-initial), .entry-cell .entry-boxes .field:has(.entry-age) { flex: 0 0 5.5rem; }
+.entry-cell .entry-boxes .field:first-child { flex: 1 1 8rem; }
+.entry-seat { margin: 0 0 .4rem; font-weight: 700; }
+td.grid-entry-open { outline: 3px solid var(--brand); outline-offset: -3px; background: #fff; }
