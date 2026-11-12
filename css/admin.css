@@ -20,3 +20,9 @@
 .form-error { color: var(--danger, #a4262c); font-weight: 700; margin: .5rem 0 0; min-height: 1.2em; }
 
 .table-wrap { overflow-x: auto; }
+
+.slot-fill-row { align-items: flex-end; }
+.slot-fill-btn { margin: 0 0 .9rem; }
+.slot-fill-row .field:has(.field-hint) { margin-bottom: .9rem; }
+.slot-fill-note { font-weight: 600; margin: 0 0 .8rem; }
+.slot-fill-note:empty { display: none; }

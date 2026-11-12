@@ -150,6 +150,7 @@ If GitHub says Pages is not available, the repository is private on a plan that 
 - **A child added by hand to one session of a series** is not linked to their record in other sessions; each record follows its own session's wipe date.
 - **Walk-ins** need only a first name and do not use up a roster seat.
 - **A waitlisted child who simply shows up** is added as a walk-in (roster) or given a free slot with "Give a slot" (time-slot programs).
+- **Setting up time slots:** in the template editor, enter minutes per slot (and minutes between slots, if the dog gets a breather) and click "Fill in the slots". The slots are worked out from the template's start and end times and can still be changed by hand. This affects programs created afterwards; a program that already exists keeps the slots it was made with.
 - **Volunteers** are never wiped: first name, last initial, dog's name, a short note. No contact details; the database refuses any other field.
 - **The login page is public** in the sense that anyone with the address can load it. They get a login box and no data. The page asks search engines not to index it.
 - **Spanish reminder wording** ships as a draft in `js/data/starter-templates.js` and should be reviewed before launch. After the starter templates are installed, edit wording in the app under Templates.

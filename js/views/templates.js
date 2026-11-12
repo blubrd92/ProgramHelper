@@ -5,7 +5,7 @@ import { h, clear, toast, showError, openDialog, confirmDialog, field, add } fro
 import {
   listTemplates, saveTemplate, deleteTemplate, installStarterTemplates,
 } from '../data/store.js';
-import { formatTime } from '../data/model.js';
+import { formatTime, generateSlots } from '../data/model.js';
 import { STARTER_TEMPLATES } from '../data/starter-templates.js';
 
 const MAX_SLOTS = 12;
@@ -110,13 +110,43 @@ export function renderTemplates(container, ctx) {
     const addSlotBtn = h('button', { type: 'button', class: 'btn', onclick: () => addSlot() }, 'Add a time slot');
     const tracksIn = h('input', { type: 'number', min: 1, max: 4, step: 1, value: t.defaultTracks || 1 });
     const labelIn = h('input', { type: 'text', maxLength: 20, value: t.kind === 'slotted' ? (t.trackLabel || '') : 'Dog' });
+    // Fill in the slots from a length, so nobody types every time by hand.
+    const lengthIn = h('input', { type: 'number', min: 1, max: 240, step: 1, inputMode: 'numeric', value: 10 });
+    const gapIn = h('input', { type: 'number', min: 0, max: 120, step: 1, inputMode: 'numeric', value: 0 });
+    const fillBtn = h('button', { type: 'button', class: 'btn btn-primary', onclick: () => fillSlots() }, 'Fill in the slots');
+    const fillNote = h('p', { class: 'slot-fill-note', role: 'status' });
     const slottedBox = h('div', { class: 'kind-box' },
       h('fieldset', { class: 'slot-fieldset' },
         h('legend', {}, 'Time slots'),
+        h('p', { class: 'muted small' }, 'Quick way: say how long each child gets, and the slots are worked out from the start and end times above. You can still change any slot by hand afterwards.'),
+        h('div', { class: 'field-row slot-fill-row' },
+          field('Minutes per slot', lengthIn),
+          field('Minutes between slots (0 for none)', gapIn),
+          h('div', { class: 'slot-fill-btn' }, fillBtn)),
+        fillNote,
         slotRows, addSlotBtn),
       h('div', { class: 'field-row' },
         field('Columns to start with (volunteer teams)', tracksIn),
         field('What to call a column', labelIn, { hint: 'For example: Dog' })));
+
+    function fillSlots() {
+      const result = generateSlots(startIn.value, endIn.value, lengthIn.value === '' ? NaN : Number(lengthIn.value), gapIn.value === '' ? 0 : Number(gapIn.value));
+      fillNote.classList.toggle('form-error', !!result.error);
+      if (result.error) {
+        fillNote.textContent = `${result.error} The slots below were not changed.`;
+        return;
+      }
+      slotRows.replaceChildren();
+      result.slots.forEach((sl) => addSlot(sl.start, sl.end));
+      const n = result.slots.length;
+      const len = Number(lengthIn.value);
+      const gap = gapIn.value === '' ? 0 : Number(gapIn.value);
+      let text = `${n} ${n === 1 ? 'slot' : 'slots'} of ${len} ${len === 1 ? 'minute' : 'minutes'}`;
+      if (gap > 0) text += `, with ${gap} ${gap === 1 ? 'minute' : 'minutes'} between`;
+      text += `, ${formatTime(result.slots[0].start)} to ${formatTime(result.slots[n - 1].end)}.`;
+      if (result.unused > 0) text += ` The last ${result.unused} ${result.unused === 1 ? 'minute is' : 'minutes are'} unused.`;
+      fillNote.textContent = text;
+    }
 
     function updateSlotButtons() {
       const rows = [...slotRows.children];

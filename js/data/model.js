@@ -271,3 +271,41 @@ export function volunteerLabel(v) {
 export function slotLabel(slot) {
   return slot ? `${formatTime(slot.start)} to ${formatTime(slot.end)}` : '';
 }
+
+export const MAX_SLOTS = 12;
+
+/**
+ * Work out evenly sized time slots between a start and an end time.
+ *   minutes  how long each child gets
+ *   gap      minutes of break after each slot (0 for back to back)
+ * Returns { slots: [{ start, end }], unused, error }.
+ *   unused  minutes left over at the end that do not fit another slot
+ *   error   a sentence for the admin when nothing could be made
+ * Example: 10:30 to 11:30, 10 minutes, no gap -> six slots, nothing unused.
+ */
+export function generateSlots(startTime, endTime, minutes, gap = 0) {
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const toText = (n) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+  const fail = (error) => ({ slots: [], unused: 0, error });
+  if (!TIME_RE.test(startTime || '') || !TIME_RE.test(endTime || '')) return fail('Enter the start time and end time first.');
+  const begin = toMin(startTime);
+  const finish = toMin(endTime);
+  if (finish <= begin) return fail('The end time must be after the start time.');
+  const len = Number(minutes);
+  const rest = gap === '' || gap == null ? 0 : Number(gap);
+  if (!Number.isInteger(len) || len < 1 || len > 240) return fail('Minutes per slot should be a whole number from 1 to 240.');
+  if (!Number.isInteger(rest) || rest < 0 || rest > 120) return fail('Minutes between slots should be a whole number from 0 to 120.');
+  if (len > finish - begin) return fail('One slot is longer than the whole program. Use fewer minutes per slot.');
+
+  const slots = [];
+  let at = begin;
+  while (at + len <= finish) {
+    slots.push({ start: toText(at), end: toText(at + len) });
+    at += len + rest;
+  }
+  if (slots.length > MAX_SLOTS) {
+    return fail(`That would make ${slots.length} slots. The most a program can have is ${MAX_SLOTS}. Use more minutes per slot.`);
+  }
+  const lastEnd = toMin(slots[slots.length - 1].end);
+  return { slots, unused: finish - lastEnd, error: '' };
+}

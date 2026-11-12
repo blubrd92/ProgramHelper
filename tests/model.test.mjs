@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clampRetention, computePurgeAfter, computePurgeCeiling, cleanSignupInput, computeCounts,
-  followThrough, localDateTime, formatTime, fillReminder,
+  followThrough, localDateTime, formatTime, fillReminder, generateSlots,
 } from '../js/data/model.js';
 
 const program = { date: '2026-11-14', fields: { age: true, email: true, caregiver: true, notes: true } };
@@ -77,4 +77,31 @@ test('small formatters', () => {
   assert.equal(formatTime('12:00'), '12:00 PM');
   assert.equal(formatTime('16:05'), '4:05 PM');
   assert.equal(fillReminder('{program} at {time} {unknown}', { program: 'Book Club', time: '4 PM' }), 'Book Club at 4 PM {unknown}');
+});
+
+test('slots are worked out from a length, with or without a gap', () => {
+  const six = generateSlots('10:30', '11:30', 10);
+  assert.equal(six.slots.length, 6);
+  assert.deepEqual(six.slots[0], { start: '10:30', end: '10:40' });
+  assert.deepEqual(six.slots[5], { start: '11:20', end: '11:30' });
+  assert.equal(six.unused, 0);
+
+  const gapped = generateSlots('10:30', '11:30', 10, 5);
+  assert.deepEqual(gapped.slots.map((s) => s.start), ['10:30', '10:45', '11:00', '11:15']);
+  assert.deepEqual(gapped.slots[3], { start: '11:15', end: '11:25' });
+  assert.equal(gapped.unused, 5, 'a gap after the last slot is not needed, so only 5 minutes are unused');
+
+  const leftover = generateSlots('10:30', '11:20', 15);
+  assert.equal(leftover.slots.length, 3);
+  assert.equal(leftover.unused, 5);
+});
+
+test('slot lengths that cannot work are refused in words', () => {
+  assert.match(generateSlots('10:30', '11:30', 2).error, /30 slots/);
+  assert.match(generateSlots('10:30', '11:30', 90).error, /longer than the whole program/);
+  assert.match(generateSlots('10:30', '11:30', 0).error, /whole number/);
+  assert.match(generateSlots('10:30', '11:30', 10, -1).error, /between slots/);
+  assert.match(generateSlots('11:30', '10:30', 10).error, /after the start/);
+  assert.match(generateSlots('', '10:30', 10).error, /start time and end time/);
+  assert.equal(generateSlots('10:30', '11:30', 10, '').slots.length, 6, 'a blank gap means no gap');
 });
