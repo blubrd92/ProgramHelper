@@ -38,7 +38,8 @@ ul.plain { list-style: none; padding: 0; margin: 0; }
 
 /* top bar */
 .topbar { display: flex; align-items: center; gap: 1.2rem; background: var(--brand-dark); color: #fff; padding: .55rem 1.2rem; }
-.topbar .brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 1.05rem; }
+.topbar .brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 1.05rem; display: flex; align-items: center; gap: .6rem; white-space: nowrap; }
+.topbar .brand img { border-radius: 7px; outline: 1.5px solid rgba(255,255,255,.35); }
 .topbar nav { display: flex; gap: .4rem; flex: 1; }
 .topbar nav a { color: #fff; text-decoration: none; padding: .45rem .8rem; border-radius: var(--radius); }
 .topbar nav a:hover { background: rgba(255,255,255,.16); }
@@ -90,7 +91,7 @@ textarea { min-height: 4.5rem; }
 .form-error:empty, .field-error:empty { display: none; }
 
 /* login */
-.login { max-width: 26rem; margin: 3rem auto; }
+.login { max-width: 28rem; margin: 3rem auto; }
 
 /* home */
 .program-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .6rem; }
@@ -134,3 +135,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 .login-role { border: 1px solid var(--line); border-radius: var(--radius); padding: .4rem 1rem .6rem; margin: 0 0 .9rem; }
 .login-role legend { font-weight: 600; padding: 0 .3rem; }
+
+.login-logo { display: block; margin: 0 auto .8rem; }
+.login h1, .login > .muted { text-align: center; }
+.login h1 { font-size: 1.45rem; white-space: nowrap; }
