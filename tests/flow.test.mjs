@@ -266,19 +266,93 @@ test('a freed slot in a called-out column is not refilled from the waitlist', as
   assert.equal((await store.cancelSignup(p, a.id)).promotedId, null);
 });
 
-test('admin can delete a program only while it has never had a sign-up', async () => {
+test('admin can delete a program nobody is signed up for; cancelled entries go with it', async () => {
   asAdmin();
   const template = (await store.listTemplates()).find((x) => x.id === 'starter-roster');
-  const empty = await store.createProgram(template, { name: 'Fake Mistake', date: inDays(9) });
+  const tried = await store.createProgram(template, { name: 'Fake Tryout', date: inDays(9) });
   const used = await store.createProgram(template, { name: 'Fake Used', date: inDays(9) });
+  const closed = await store.createProgram(template, { name: 'Fake Closed', date: inDays(9) });
   asStaff();
-  const s = await store.addSignup(used, kid('Teal', 'L'));
-  await store.cancelSignup(used, s.id);
-  await assert.rejects(store.deleteProgram(empty));
+  const s = await store.addSignup(tried, kid('Teal', 'L'));
+  await store.cancelSignup(tried, s.id);
+  await store.addSignup(used, kid('Jade', 'M'));
+  await store.closeOut(closed, {});
+  await assert.rejects(store.deleteProgram(tried), 'staff cannot delete');
   asAdmin();
-  await assert.rejects(store.deleteProgram(used), /cannot be deleted/);
-  await store.deleteProgram(empty);
-  assert.equal(await store.getProgram(empty), null);
+  await assert.rejects(store.deleteProgram(used), /signed up/);
+  await assert.rejects(store.deleteProgram(closed), /closed out/);
+  await store.deleteProgram(tried);
+  assert.equal(await store.getProgram(tried), null);
+  await t.raw(async (d) => {
+    assert.equal((await getDocs(collection(d, `programs/${tried}/signups`))).size, 0, 'the cancelled entry is deleted too');
+    assert.equal((await getDoc(doc(d, 'purgeQueue', s.id))).exists(), false);
+  });
+});
+
+test('editing a program: name, seats, date, details collected', async () => {
+  asAdmin();
+  await store.saveRetentionDays(14);
+  const template = (await store.listTemplates()).find((x) => x.id === 'starter-roster');
+  const p = await store.createProgram(template, { name: 'Fake Editable', date: inDays(4), capacity: 2 });
+  asStaff();
+  await store.addSignup(p, kid('Ash', 'A'));
+  await store.addSignup(p, kid('Birch', 'B'));
+  const c = await store.addSignup(p, kid('Cedar', 'C'));
+  const d = await store.addSignup(p, kid('Dogwood', 'D'));
+  await assert.rejects(store.updateProgram(p, { name: 'Staff Rename' }), 'staff cannot edit a program');
+
+  asAdmin();
+  await assert.rejects(store.updateProgram(p, { capacity: 1 }), /already have seats/);
+  await assert.rejects(store.updateProgram(p, { name: '  ' }), /name/);
+  await assert.rejects(store.updateProgram(p, { date: inDays(-3) }), /past/);
+  await assert.rejects(store.updateProgram(p, { startTime: '17:00', endTime: '16:00' }), /end time/);
+
+  // More seats: the waitlist moves up in order and is flagged.
+  let result = await store.updateProgram(p, { name: 'Fake Renamed', capacity: 3 });
+  assert.equal(result.promoted, 1);
+  let prog = await store.getProgram(p);
+  assert.deepEqual([prog.name, prog.capacity, prog.seatsTaken, prog.needsContact], ['Fake Renamed', 3, 3, 1]);
+  assert.deepEqual(prog.waitlist, [d.id]);
+  const byId = Object.fromEntries((await store.listSignups(p)).map((s) => [s.id, s]));
+  assert.deepEqual([byId[c.id].status, byId[c.id].needsContact], ['registered', true]);
+  assert.equal(prog.counts.registered, 3);
+
+  // A new date moves everyone's wipe date and the ceiling.
+  result = await store.updateProgram(p, { date: inDays(10), endTime: '17:15', fields: { age: false, email: true, caregiver: true, notes: false } });
+  prog = await store.getProgram(p);
+  assert.equal(prog.date, inDays(10));
+  assert.equal(prog.endTime, '17:15');
+  assert.deepEqual(prog.fields, { age: false, email: true, caregiver: true, notes: false });
+  assert.equal(prog.purgeCeiling.toMillis(), prog.endsAt.toMillis() + 30 * DAY);
+  for (const s of await store.listSignups(p)) {
+    assert.equal(s.purgeAfter.toMillis(), prog.endsAt.toMillis() + 14 * DAY);
+    assert.equal((await getDoc(doc(t.admin, 'purgeQueue', s.id))).data().purgeAfter.toMillis(), s.purgeAfter.toMillis());
+  }
+  asStaff();
+  await store.addSignup(p, kid('Elm', 'E'));
+  assert.equal((await store.getProgram(p)).waitlist.length, 2, 'staff can keep working after the edit');
+
+  asStaff();
+  await store.closeOut(p, {});
+  asAdmin();
+  await assert.rejects(store.updateProgram(p, { name: 'Too Late' }), /closed out/);
+});
+
+test('editing time slots: change times, add at the end, remove only empty ones from the end', async () => {
+  asAdmin();
+  const template = (await store.listTemplates()).find((x) => x.id === 'starter-read-to-a-dog');
+  const p = await store.createProgram(template, { name: 'Fake Dog Edit', date: inDays(6) });
+  asStaff();
+  const a = await store.addSignup(p, { ...kid('Fern', 'F'), slot: 3, trackId: 't1' });
+  asAdmin();
+  const slots = [{ start: '10:30', end: '10:45' }, { start: '10:45', end: '11:00' }, { start: '11:00', end: '11:15' }, { start: '11:15', end: '11:30' }];
+  await store.updateProgram(p, { slots });
+  let prog = await store.getProgram(p);
+  assert.equal(prog.slots.length, 4);
+  assert.equal(prog.seats['3_t1'], a.id, 'the booked child keeps their place');
+  await assert.rejects(store.updateProgram(p, { slots: slots.slice(0, 3) }), /booked in the time slots that would be removed/);
+  await store.updateProgram(p, { slots: [...slots, { start: '11:30', end: '11:45' }] });
+  assert.equal((await store.getProgram(p)).slots.length, 5);
 });
 
 test('templates: admin saves, duplicates and deletes; bad input is refused', async () => {

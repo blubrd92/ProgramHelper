@@ -9,7 +9,7 @@
 import { h, clear, toast, showError, openDialog, confirmDialog, add } from '../ui.js';
 import {
   watchProgram, watchSignups, setAttendance, cancelSignup, markContacted, closeOut,
-  listVolunteers, setProgramVolunteers, duplicateProgram, deleteProgram,
+  listVolunteers, setProgramVolunteers, duplicateProgram, deleteProgram, whyNotDeletable,
 } from '../data/store.js';
 import {
   STATUS, childLabel, formatTime, formatDateLong, computeCounts, followThrough, toDate,
@@ -17,6 +17,7 @@ import {
 } from '../data/model.js';
 import { openSignupForm } from './signup-form.js';
 import { createEntry } from './entry-row.js';
+import { openProgramEdit } from './program-edit.js';
 import { renderSlotGrid } from './slot-grid.js';
 
 export function renderProgram(container, ctx, programId) {
@@ -28,6 +29,7 @@ export function renderProgram(container, ctx, programId) {
   // The always-open entry boxes. Built once (when the program arrives) and
   // put back on the page after every redraw, so typing is never lost.
   let stripEntry = null;     // the entry row: above the roster, or above the slot grid
+  let entryFieldsKey = '';
   let firstFocusDone = false;
   let drawing = false;
 
@@ -113,7 +115,11 @@ export function renderProgram(container, ctx, programId) {
 
   /** Make the entry row the first time the program is known. */
   function ensureEntries() {
-    if (stripEntry) return;
+    // If the admin just changed which details this program collects, rebuild
+    // the row so its boxes match.
+    const fieldsKey = JSON.stringify(program.fields || {});
+    if (stripEntry && fieldsKey === entryFieldsKey) return;
+    entryFieldsKey = fieldsKey;
     stripEntry = createEntry({
       programId, getProgram: () => program,
       title: 'Add a child',
@@ -169,15 +175,22 @@ export function renderProgram(container, ctx, programId) {
   }
 
   async function deleteThisProgram() {
+    const leftovers = (signups || []).length;
     const sure = await confirmDialog('Delete this program?',
-      `Delete "${program.name}"? This cannot be undone.`, 'Delete program', { danger: true });
+      `Delete "${program.name}"? This cannot be undone.`
+        + (leftovers ? ` ${leftovers} cancelled ${leftovers === 1 ? 'entry' : 'entries'} on it will be deleted too.` : ''),
+      'Delete program', { danger: true });
     if (!sure) return;
     try {
       await deleteProgram(programId);
       toast('Program deleted.');
       location.hash = '#/';
     } catch (e) {
-      showError(e);
+      if (e?.code === 'permission-denied') {
+        toast('The database refused to delete it. The security rules in Firebase are probably an older version: paste the current firestore.rules file into the Firebase console (see the README).', 'error');
+      } else {
+        showError(e);
+      }
     }
   }
 
@@ -366,10 +379,11 @@ export function renderProgram(container, ctx, programId) {
     }
     const links = h('div', { class: 'action-row head-links' },
       h('a', { class: 'btn', href: `#/program/${programId}/reminders` }, 'Reminders'),
+      ctx.isAdmin && !closed ? h('button', { type: 'button', class: 'btn', onclick: () => openProgramEdit(program), dataset: { key: 'edit-program' } }, 'Edit program') : null,
       ctx.isAdmin ? h('button', { type: 'button', class: 'btn', onclick: openDuplicate }, 'Duplicate for a new date') : null,
       !closed ? h('button', { type: 'button', class: 'btn', onclick: openCloseOut, dataset: { key: 'close-out' } }, 'Close out program') : null,
-      ctx.isAdmin && (program.signupTotal || 0) === 0
-        ? h('button', { type: 'button', class: 'btn', onclick: deleteThisProgram }, 'Delete program') : null);
+      ctx.isAdmin && !whyNotDeletable(program, signups)
+        ? h('button', { type: 'button', class: 'btn', onclick: deleteThisProgram, dataset: { key: 'delete-program' } }, 'Delete program') : null);
     return h('header', { class: 'program-head' },
       back,
       h('div', { class: 'page-head' },

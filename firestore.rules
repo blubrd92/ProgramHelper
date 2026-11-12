@@ -83,8 +83,13 @@ service cloud.firestore {
           'tracks', 'volunteerIds', 'status', 'stats', 'headcount', 'closedAt',
           'signupTotal'
         ]));
-      // Only the admin, and only a program that never had a sign-up.
-      allow delete: if isAdmin() && resource.data.signupTotal == 0;
+      // Only the admin, and only a program that nobody is signed up for and
+      // that has not been closed out. Cancelled entries do not block it.
+      allow delete: if isAdmin()
+        && resource.data.status != 'closed'
+        && resource.data.seatsTaken == 0
+        && resource.data.seats.size() == 0
+        && resource.data.waitlist.size() == 0;
 
       // Sign-ups: the only place personal data is stored.
       match /signups/{sid} {

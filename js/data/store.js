@@ -13,7 +13,7 @@ import {
 import {
   STATUS, holdsSeat, clampRetention, DEFAULT_RETENTION_DAYS, localDateTime,
   computePurgeAfter, computePurgeCeiling, seatKey, cleanSignupInput, computeCounts,
-  sameCounts, toDate, cleanTemplate, cleanVolunteer,
+  sameCounts, toDate, cleanTemplate, cleanVolunteer, localDateString,
 } from './model.js';
 import { STARTER_TEMPLATES } from './starter-templates.js';
 
@@ -235,7 +235,7 @@ export async function createProgram(template, { name, date, startTime, endTime, 
     recurring: !!template.recurring,
     reminder: { ...template.reminder },
     status: 'open',
-    // signupTotal only ever goes up. A program can be deleted only while it is 0.
+    // signupTotal only ever goes up: how many sign-ups this program has ever had.
     signupTotal: 0,
     seatsTaken: 0,
     seats: {},
@@ -666,14 +666,171 @@ export async function duplicateProgram(pid, { date, name, carryRoster }) {
   return { id: newId, carried };
 }
 
-/** Admin only. Only a program that never had a sign-up can be deleted. */
+/**
+ * Give free roster seats to the waitlist, in order. Each child moved up is
+ * flagged "needs contact". Returns how many were moved up.
+ */
+async function fillSeatsFromWaitlist(pid) {
+  let moved = 0;
+  for (;;) {
+    const promoted = await runTransaction(db, async (tx) => {
+      const pSnap = await tx.get(programRef(pid));
+      const program = pSnap.exists() ? withId(pSnap) : null;
+      if (!program || program.status === 'closed' || program.kind !== 'roster') return false;
+      const waitlist = [...(program.waitlist || [])];
+      if (!waitlist.length || (program.seatsTaken || 0) >= program.capacity) return false;
+      const nextId = waitlist.shift();
+      const cSnap = await tx.get(signupRef(pid, nextId));
+      const update = { waitlist };
+      if (cSnap.exists() && cSnap.data().status === STATUS.waitlisted) {
+        tx.update(cSnap.ref, { status: STATUS.registered, needsContact: true });
+        update.seatsTaken = (program.seatsTaken || 0) + 1;
+        update.needsContact = (program.needsContact || 0) + 1;
+      }
+      tx.update(programRef(pid), update);
+      return true;
+    });
+    if (!promoted) break;
+    moved += 1;
+  }
+  return moved;
+}
+
+/**
+ * Admin only. Change a program after it was created.
+ *
+ * changes may hold: name, date, startTime, endTime, capacity (roster),
+ * fields, reminder, slots (time-slot programs).
+ *
+ * What it looks after:
+ *   - A new date or time moves the privacy wipe date for everyone signed up.
+ *   - More seats: children move up from the waitlist, flagged "needs contact".
+ *   - Fewer seats than children already seated: refused.
+ *   - Time slots: times can change and slots can be added at the end. A slot
+ *     can only be removed from the end, and only if nobody is booked in it.
+ *   - The kind of program cannot change, and a closed-out program cannot be edited.
+ *
+ * Returns { promoted } (how many children moved up from the waitlist).
+ */
+export async function updateProgram(pid, changes) {
+  const todayStr = localDateString(new Date());
+  let dateOrTimeChanged = false;
+  let seriesId = null;
+
+  await runTransaction(db, async (tx) => {
+    const pSnap = await tx.get(programRef(pid));
+    const program = pSnap.exists() ? withId(pSnap) : null;
+    requireOpen(program);
+    seriesId = program.seriesId || null;
+
+    // Reuse the template checks: a program has the same kinds of settings.
+    const { data, errors } = cleanTemplate({
+      name: changes.name ?? program.name,
+      kind: program.kind,
+      audience: program.audience,
+      capacity: changes.capacity ?? program.capacity,
+      startTime: changes.startTime ?? program.startTime,
+      endTime: changes.endTime ?? program.endTime,
+      slots: changes.slots ?? program.slots,
+      defaultTracks: Math.max(1, (program.tracks || []).length),
+      trackLabel: program.trackLabel,
+      fields: changes.fields ?? program.fields,
+      volunteers: program.volunteers,
+      recurring: program.recurring,
+      reminder: changes.reminder ?? program.reminder,
+    });
+    if (errors.length) throw new UserError(errors[0].replace('template', 'program'));
+
+    const date = changes.date ?? program.date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) throw new UserError('Pick a date.');
+    if (date !== program.date && date < todayStr) {
+      throw new UserError('A program cannot be moved to a date in the past.');
+    }
+
+    const update = { name: data.name, fields: data.fields, reminder: data.reminder };
+    dateOrTimeChanged = date !== program.date || data.startTime !== program.startTime || data.endTime !== program.endTime;
+    if (dateOrTimeChanged) {
+      const endsAt = localDateTime(date, data.endTime);
+      update.date = date;
+      update.startTime = data.startTime;
+      update.endTime = data.endTime;
+      update.startsAt = Timestamp.fromDate(localDateTime(date, data.startTime));
+      update.endsAt = Timestamp.fromDate(endsAt);
+      update.purgeCeiling = Timestamp.fromDate(computePurgeCeiling(endsAt));
+    }
+
+    if (program.kind === 'roster') {
+      if (data.capacity < (program.seatsTaken || 0)) {
+        throw new UserError(`${program.seatsTaken} children already have seats. Cancel some first, or keep at least ${program.seatsTaken} seats.`);
+      }
+      update.capacity = data.capacity;
+    } else {
+      const booked = Object.keys(program.seats || {}).filter((k) => Number(k.split('_')[0]) >= data.slots.length).length;
+      if (booked) {
+        throw new UserError(`${booked} ${booked === 1 ? 'child is' : 'children are'} booked in the time slots that would be removed. Move or cancel them first.`);
+      }
+      update.slots = data.slots;
+    }
+    tx.update(programRef(pid), update);
+  });
+
+  if (dateOrTimeChanged) {
+    const days = await getRetentionDays();
+    if (seriesId) {
+      // Every session in a series shares one ceiling: the latest session's.
+      const members = (await getDocs(query(collection(db, 'programs'), where('seriesId', '==', seriesId)))).docs.map(withId);
+      const ceiling = Timestamp.fromMillis(Math.max(...members.map((p) => computePurgeCeiling(p.endsAt).getTime())));
+      for (const p of members) {
+        if (p.purgeCeiling.toMillis() !== ceiling.toMillis()) await updateDoc(programRef(p.id), { purgeCeiling: ceiling });
+      }
+      await syncSeriesRetention(seriesId, days);
+    } else {
+      const program = await getProgram(pid);
+      const tickets = await getDocs(query(collection(db, 'purgeQueue'), where('programId', '==', pid)));
+      for (const t of tickets.docs) {
+        await setPurgeDate(pid, t.id, computePurgeAfter(program.endsAt, days), t.data().purgeAfter);
+      }
+    }
+  }
+
+  const promoted = await fillSeatsFromWaitlist(pid);
+  await refreshCounts(pid);
+  return { promoted };
+}
+
+/**
+ * Can this program be deleted? Only while nobody is signed up for it and it
+ * has not been closed out. Cancelled entries do not block it.
+ * Returns '' when it can, or a sentence saying why not.
+ */
+export function whyNotDeletable(program, signups) {
+  if (!program) return 'That program no longer exists.';
+  if (program.status === 'closed') return 'This program is closed out. Its numbers are part of the stats, so it cannot be deleted.';
+  if ((program.seatsTaken || 0) > 0 || Object.keys(program.seats || {}).length > 0) return 'Children are signed up for this program. Cancel them first.';
+  if ((program.waitlist || []).length > 0) return 'Children are on the waitlist for this program. Cancel them first.';
+  if ((signups || []).some((s) => s.status === STATUS.attended)) return 'This program has walk-ins counted as attended. Remove them first.';
+  return '';
+}
+
+/**
+ * Admin only. Delete a program nobody is signed up for. Any cancelled
+ * entries left on it are deleted too.
+ */
 export async function deleteProgram(pid) {
   const program = await getProgram(pid);
   if (!program) return;
-  if ((program.signupTotal || 0) > 0) {
-    throw new UserError('This program has had sign-ups, so it cannot be deleted. Its numbers are part of the stats.');
-  }
+  const signups = await listSignups(pid);
+  const reason = whyNotDeletable(program, signups);
+  if (reason) throw new UserError(reason);
+  // The program goes first: that is the step the security rules guard.
   await deleteDoc(programRef(pid));
+  const tickets = await getDocs(query(collection(db, 'purgeQueue'), where('programId', '==', pid)));
+  for (const t of tickets.docs) {
+    const batch = writeBatch(db);
+    batch.delete(signupRef(pid, t.id));
+    batch.delete(t.ref);
+    await batch.commit();
+  }
 }
 
 // ------------------------------------------------------- counts and close-out

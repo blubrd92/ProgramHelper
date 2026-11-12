@@ -26,3 +26,7 @@
 .slot-fill-row .field:has(.field-hint) { margin-bottom: .9rem; }
 .slot-fill-note { font-weight: 600; margin: 0 0 .8rem; }
 .slot-fill-note:empty { display: none; }
+
+.edit-reminders { margin: 0 0 1rem; }
+.edit-reminders summary { cursor: pointer; font-weight: 600; padding: .5rem 0; color: var(--brand); text-decoration: underline; }
+.edit-reminders textarea { min-height: 9rem; }

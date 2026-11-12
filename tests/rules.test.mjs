@@ -14,9 +14,13 @@ before(async () => {
     await setDoc(doc(d, 'templates/t1'), { name: 'Fake template' });
     await setDoc(doc(d, 'volunteers/v1'), { firstName: 'Fern', lastInitial: 'Q', dogName: 'Biscuit', note: '' });
     await setDoc(doc(d, 'programs/p1'), {
-      name: 'Fake Workshop', status: 'open', seatsTaken: 1, signupTotal: 3, capacity: 20, purgeCeiling: ts(30 * DAY),
+      name: 'Fake Workshop', status: 'open', seatsTaken: 1, seats: {}, waitlist: [], signupTotal: 3, capacity: 20, purgeCeiling: ts(30 * DAY),
     });
-    await setDoc(doc(d, 'programs/empty'), { name: 'Fake Mistake', status: 'open', signupTotal: 0, purgeCeiling: ts(30 * DAY) });
+    const blank = { status: 'open', seatsTaken: 0, seats: {}, waitlist: [], purgeCeiling: ts(30 * DAY) };
+    await setDoc(doc(d, 'programs/empty'), { ...blank, name: 'Fake Mistake', signupTotal: 2 });
+    await setDoc(doc(d, 'programs/closedOne'), { ...blank, name: 'Fake Closed', status: 'closed' });
+    await setDoc(doc(d, 'programs/waiting'), { ...blank, name: 'Fake Waiting', waitlist: ['x'] });
+    await setDoc(doc(d, 'programs/slotted'), { ...blank, name: 'Fake Slotted', seats: { '0_t1': 'x' } });
     await setDoc(doc(d, 'programs/p1/signups/live'), fakeSignup({ purgeAfter: ts(5 * DAY) }));
     await setDoc(doc(d, 'purgeQueue/live'), { programId: 'p1', purgeAfter: ts(5 * DAY) });
     const gone = ts(-1 * DAY);
@@ -86,9 +90,13 @@ test('staff cannot create programs or edit their setup; they can update day-to-d
   await assertSucceeds(updateDoc(doc(t.staff, 'programs/p1'), { seatsTaken: 2, counts: { registered: 2 } }));
 });
 
-test('only the admin can delete a program, and only one that never had a sign-up', async () => {
+test('only the admin can delete a program, and only one nobody is signed up for', async () => {
   await assertFails(deleteDoc(doc(t.staff, 'programs/empty')));
-  await assertFails(deleteDoc(doc(t.admin, 'programs/p1')));
+  await assertFails(deleteDoc(doc(t.admin, 'programs/p1')), 'a child holds a seat');
+  await assertFails(deleteDoc(doc(t.admin, 'programs/closedOne')), 'closed out');
+  await assertFails(deleteDoc(doc(t.admin, 'programs/waiting')), 'someone is waiting');
+  await assertFails(deleteDoc(doc(t.admin, 'programs/slotted')), 'a slot is booked');
+  // Past sign-ups that were all cancelled do not block it.
   await assertSucceeds(deleteDoc(doc(t.admin, 'programs/empty')));
 });
 
