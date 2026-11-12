@@ -1,4 +1,4 @@
-# Children's Program Sign-Ups
+# Library Program Sign-Ups
 
 A staff-only sign-up tool for the Children's Room at San Rafael Public Library. It replaces the shared Excel workbook. There is no public or parent-facing page.
 

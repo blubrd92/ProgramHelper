@@ -95,7 +95,7 @@ function showLogin() {
   const button = h('button', { type: 'submit', class: 'btn btn-primary btn-big' }, 'Sign in');
   const form = h('form', { class: 'card login', novalidate: true },
     h('img', { class: 'login-logo', src: 'logo.svg', alt: '', width: 72, height: 72 }),
-    h('h1', {}, "Children's Program Sign-Ups"),
+    h('h1', {}, "Library Program Sign-Ups"),
     h('p', { class: 'muted' }, 'Staff only.'),
     h('fieldset', { class: 'login-role' },
       h('legend', {}, 'Sign in as'),
