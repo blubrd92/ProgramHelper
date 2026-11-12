@@ -338,6 +338,29 @@ test('editing a program: name, seats, date, details collected', async () => {
   await assert.rejects(store.updateProgram(p, { name: 'Too Late' }), /closed out/);
 });
 
+test('the contact requirement can be switched off for one program, and carries to a duplicate', async () => {
+  asAdmin();
+  const template = (await store.listTemplates()).find((x) => x.id === 'starter-roster');
+  const p = await store.createProgram(template, { name: 'Fake Drop-In', date: inDays(5) });
+  assert.equal((await store.getProgram(p)).requireContact, true, 'on by default');
+  asStaff();
+  await assert.rejects(store.addSignup(p, { childFirst: 'Reed', childInitial: 'R' }), /phone number/);
+  await assert.rejects(store.updateProgram(p, { requireContact: false }), 'staff cannot change it');
+  asAdmin();
+  await store.updateProgram(p, { requireContact: false });
+  asStaff();
+  const r = await store.addSignup(p, { childFirst: 'Reed', childInitial: 'R' });
+  assert.equal(r.status, 'registered');
+  await store.updateSignup(p, r.id, { childFirst: 'Reed', childInitial: 'S' });
+  asAdmin();
+  const { id: next } = await store.duplicateProgram(p, { date: inDays(33), carryRoster: true });
+  assert.equal((await store.getProgram(next)).requireContact, false);
+  assert.equal((await store.getProgram(next)).seatsTaken, 1, 'the child with no contact details is carried over too');
+  await store.updateProgram(p, { requireContact: true });
+  asStaff();
+  await assert.rejects(store.addSignup(p, { childFirst: 'Sorrel', childInitial: 'T' }), /phone number/);
+});
+
 test('editing time slots: change times, add at the end, remove only empty ones from the end', async () => {
   asAdmin();
   const template = (await store.listTemplates()).find((x) => x.id === 'starter-read-to-a-dog');

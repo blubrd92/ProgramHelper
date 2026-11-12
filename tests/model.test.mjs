@@ -34,6 +34,13 @@ test('contact is required unless walk-in', () => {
   assert.deepEqual(cleanSignupInput({ childFirst: 'A', childInitial: 'B', email: 'a@example.test' }, program).errors, {});
 });
 
+test('a program can switch off the contact requirement', () => {
+  const open = { ...program, requireContact: false };
+  assert.deepEqual(cleanSignupInput({ childFirst: 'A', childInitial: 'B' }, open).errors, {});
+  assert.ok(cleanSignupInput({ childFirst: 'A' }, open).errors.childInitial, 'the last initial is still needed');
+  assert.ok(cleanSignupInput({ childFirst: 'A', childInitial: 'B' }, { ...program, requireContact: true }).errors.contact);
+});
+
 test('fields the program does not collect are dropped', () => {
   const p = { date: '2026-11-14', fields: {} };
   const { data } = cleanSignupInput(

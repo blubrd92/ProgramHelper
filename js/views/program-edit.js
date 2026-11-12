@@ -17,6 +17,7 @@ export function openProgramEdit(program) {
   const seats = h('input', { type: 'number', min: 1, max: 200, step: 1, inputMode: 'numeric', value: program.capacity });
 
   // ---- what to collect
+  const requireContact = h('input', { type: 'checkbox', id: 'edit-require-contact', checked: program.requireContact !== false });
   const collect = {};
   const collectRow = (key, label) => {
     const box = h('input', { type: 'checkbox', id: `edit-collect-${key}`, checked: !!program.fields?.[key] });
@@ -29,7 +30,10 @@ export function openProgramEdit(program) {
     collectRow('caregiver', 'Caregiver first name'),
     collectRow('email', 'Email'),
     collectRow('notes', 'Notes'),
-    h('p', { class: 'muted small' }, 'Turning one off hides it from now on. It does not erase what was already typed.'));
+    h('p', { class: 'muted small' }, 'Turning one off hides it from now on. It does not erase what was already typed.'),
+    h('div', { class: 'check-row' }, requireContact,
+      h('label', { for: 'edit-require-contact' }, 'Require a phone number or email for each sign-up')),
+    h('p', { class: 'muted small' }, 'When this is off, a child can be signed up with just a name. Families with no contact details cannot be reminded, or told if a waitlist spot opens.'));
 
   // ---- time slots (time-slot programs)
   const booked = new Set(Object.keys(program.seats || {}).map((k) => Number(k.split('_')[0])));
@@ -145,6 +149,7 @@ export function openProgramEdit(program) {
         startTime: start.value,
         endTime: end.value,
         fields: { age: collect.age.checked, caregiver: collect.caregiver.checked, email: collect.email.checked, notes: collect.notes.checked },
+        requireContact: requireContact.checked,
         reminder: { en: en.value, es: es.value },
       };
       if (slotted) changes.slots = readSlots();

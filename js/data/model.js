@@ -114,7 +114,9 @@ export function cleanSignupInput(input, program) {
   if (data.childInitial && !/^\p{L}$/u.test(data.childInitial)) errors.childInitial = 'Use one letter.';
   if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errors.email = 'That email does not look right.';
   // Walk-ins are already in the room, so contact info is optional for them.
-  if (!walkIn && !data.phone && !data.email) {
+  // The admin can also switch the requirement off for a whole program
+  // ("Edit program" > "Require a phone number or email").
+  if (!walkIn && program.requireContact !== false && !data.phone && !data.email) {
     errors.contact = fields.email ? 'Enter a phone number, an email, or both.' : 'Enter a phone number.';
   }
   return { data, errors };

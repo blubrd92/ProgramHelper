@@ -230,6 +230,8 @@ export async function createProgram(template, { name, date, startTime, endTime, 
     trackLabel: template.trackLabel || '',
     tracks,
     fields: { ...template.fields },
+    // Must a sign-up have a phone number or an email? On unless switched off.
+    requireContact: template.requireContact !== false,
     volunteers: !!template.volunteers,
     volunteerIds: [],
     recurring: !!template.recurring,
@@ -700,7 +702,7 @@ async function fillSeatsFromWaitlist(pid) {
  * Admin only. Change a program after it was created.
  *
  * changes may hold: name, date, startTime, endTime, capacity (roster),
- * fields, reminder, slots (time-slot programs).
+ * fields, requireContact, reminder, slots (time-slot programs).
  *
  * What it looks after:
  *   - A new date or time moves the privacy wipe date for everyone signed up.
@@ -748,6 +750,7 @@ export async function updateProgram(pid, changes) {
     }
 
     const update = { name: data.name, fields: data.fields, reminder: data.reminder };
+    if (typeof changes.requireContact === 'boolean') update.requireContact = changes.requireContact;
     dateOrTimeChanged = date !== program.date || data.startTime !== program.startTime || data.endTime !== program.endTime;
     if (dateOrTimeChanged) {
       const endsAt = localDateTime(date, data.endTime);
