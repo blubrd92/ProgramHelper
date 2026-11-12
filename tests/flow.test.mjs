@@ -359,6 +359,17 @@ test('the contact requirement can be switched off for one program, and carries t
   await store.updateProgram(p, { requireContact: true });
   asStaff();
   await assert.rejects(store.addSignup(p, { childFirst: 'Sorrel', childInitial: 'T' }), /phone number/);
+
+  // The same switch on a template: programs made from it start with it off.
+  asAdmin();
+  const relaxed = await store.saveTemplate(null, { ...template, name: 'Fake Drop-In Template', requireContact: false });
+  const saved = (await store.listTemplates()).find((x) => x.id === relaxed);
+  assert.equal(saved.requireContact, false);
+  assert.equal((await store.listTemplates()).find((x) => x.id === 'starter-roster').requireContact, undefined, 'shipped templates are untouched');
+  const fromRelaxed = await store.createProgram(saved, { name: 'Fake From Relaxed', date: inDays(6) });
+  assert.equal((await store.getProgram(fromRelaxed)).requireContact, false);
+  asStaff();
+  assert.equal((await store.addSignup(fromRelaxed, { childFirst: 'Tarn', childInitial: 'U' })).status, 'registered');
 });
 
 test('editing time slots: change times, add at the end, remove only empty ones from the end', async () => {

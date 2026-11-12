@@ -203,13 +203,17 @@ export function renderTemplates(container, ctx) {
       checks[key] = h('input', { type: 'checkbox', id: `tplF${key}`, checked: !!checked });
       return h('div', { class: 'check-row' }, checks[key], h('label', { for: `tplF${key}` }, label));
     };
+    const requireContactIn = h('input', { type: 'checkbox', id: 'tplRequireContact', checked: t.requireContact !== false });
     const collectSet = h('fieldset', {},
       h('legend', {}, 'Information to collect'),
       checkRow('age', "Child's age", fields.age),
       checkRow('caregiver', 'Caregiver first name', fields.caregiver),
       checkRow('email', 'Email', fields.email),
       checkRow('notes', 'Notes', fields.notes),
-      h('p', { class: 'field-hint' }, "The child's first name and last initial, phone number and language are always collected."));
+      h('p', { class: 'field-hint' }, "The child's first name and last initial, phone number and language are always asked for."),
+      h('div', { class: 'check-row' }, requireContactIn,
+        h('label', { for: 'tplRequireContact' }, 'Require a phone number or email for each sign-up')),
+      h('p', { class: 'field-hint' }, 'When this is off, a child can be signed up with just a name. Families with no contact details cannot be reminded, or told if a waitlist spot opens. It can also be changed later for one program.'));
 
     const volIn = h('input', { type: 'checkbox', id: 'tplVol', checked: !!t.volunteers });
     const volRow = h('div', { class: 'check-row' }, volIn, h('label', { for: 'tplVol' }, 'Track volunteers for this program'));
@@ -301,6 +305,7 @@ export function renderTemplates(container, ctx) {
           age: checks.age.checked, caregiver: checks.caregiver.checked,
           email: checks.email.checked, notes: checks.notes.checked,
         },
+        requireContact: requireContactIn.checked,
         volunteers: slotted ? true : volIn.checked,
         recurring: recIn.checked,
         reminder: { en: enIn.value, es: esIn.value },

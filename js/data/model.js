@@ -215,6 +215,8 @@ export function cleanTemplate(input) {
       age: !!input.fields?.age, email: !!input.fields?.email,
       caregiver: !!input.fields?.caregiver, notes: !!input.fields?.notes,
     },
+    // Must a sign-up have a phone number or an email? On unless switched off.
+    requireContact: input.requireContact !== false,
     volunteers: !!input.volunteers,
     recurring: !!input.recurring,
     reminder: { en: str(input.reminder?.en, 2000), es: str(input.reminder?.es, 2000) },
