@@ -143,7 +143,7 @@ If GitHub says Pages is not available, the repository is private on a plan that 
 
 ## Things worth knowing
 
-- **Adding a child takes no pop-up.** The entry boxes are always open above the roster: type, Tab across, press Enter. Ctrl+Enter adds the child and keeps the contact details for a sibling. In a time-slot program, click "Add child" in a free slot and the same boxes open inside it; Escape closes them. Editing a child still opens a form, and cancelling, removing or deleting always asks first.
+- **Adding a child takes no pop-up.** The entry row is always open at the top of a program: type, Tab across, press Enter. Ctrl+Enter adds the child and keeps the contact details for a sibling. In a time-slot program the row starts with a "Time slot" box that is already set to the next free slot and moves on by itself after each child; to choose a different time, change the box or click a free slot in the grid. Its last choice is "No time slot (waitlist)". Editing a child still opens a form, and cancelling, removing or deleting always asks first.
 
 - **Duplicate a repeating program before its names are wiped.** "Sign up the same children" copies from the old program's sign-ups. With a 14-day retention and a monthly club, last month's names are gone before next month's meeting. Duplicate right after the session, while the roster is still there.
 - **A program can be deleted only if it never had a sign-up.** After that its numbers are part of the stats.
@@ -166,7 +166,7 @@ js/data/store.js               every database read and write, including the purg
 js/data/starter-templates.js   the three shipped templates and reminder wording
 js/data/reminders.js           who to remind and what the message says
 js/data/stats.js               totals and the CSV
-js/views/                      one file per screen (entry-row.js is the always-open entry boxes)
+js/views/                      one file per screen (entry-row.js is the always-open entry row)
 vendor/                        Firebase's browser library, copied in (no outside CDN)
 firestore.rules                who can read and write what; the 30-day cap; the expired-record lock
 tests/                         automated tests; run with npm test

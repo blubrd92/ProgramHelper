@@ -1,41 +1,41 @@
-// The always-open entry boxes: type a child straight in, press Enter.
+// The always-open entry row: type a child straight in, press Enter.
 // No pop-up, no Save button to find, nothing to dismiss afterwards.
 //
-// Used in two shapes:
-//   'strip'  a row of boxes above a roster (or above a slot grid, for the
-//            waitlist and for walk-ins without a slot)
-//   'cell'   a small stack of boxes inside one empty time slot
+// Roster programs: the row sits above the roster.
+// Time-slot programs: the same row sits above the grid, with one extra box
+// in front, "Time slot". It fills itself in with the next free slot and
+// moves on after each child, so booking children in order is all typing.
 //
-// The page around it is redrawn whenever the data changes, but this piece is
+// The page around it is redrawn whenever the data changes, but this row is
 // built ONCE and put back in place each time, so whatever is being typed
 // survives the redraw.
 //
 // Privacy: what is typed goes only to addSignup() in the data layer.
 import { h, toast, showError, field, setFieldError } from '../ui.js';
 import { addSignup } from '../data/store.js';
-import { cleanSignupInput, childLabel } from '../data/model.js';
+import { cleanSignupInput, childLabel, formatTime, seatKey } from '../data/model.js';
+
+const NO_SLOT = ''; // the "no time slot" choice in the Time slot box
 
 /**
  * options:
- *   programId   the program being added to
- *   getProgram  returns the newest copy of the program
- *   layout      'strip' or 'cell'
- *   title       heading for the strip
- *   onClose     cell only: called when the boxes should close
- *   onSibling   cell only: called with true/false when contact details are
- *               being held for a sibling (so the page can say "pick a slot")
+ *   programId     the program being added to
+ *   getProgram    returns the newest copy of the program
+ *   title         heading for the row
+ *   onSeatChange  time-slot programs: called when the chosen slot changes,
+ *                 so the page can mark it in the grid
  *
- * Returns { el, open({ seat, seatLabel, walkIn }), focus(), holdsContact(), clearContact() }.
+ * Returns { el, focus(), refresh(), selectSeat(slot, trackId, walkIn), selectedSeat() }.
  */
-export function createEntry({ programId, getProgram, layout = 'strip', title, onClose, onSibling }) {
+export function createEntry({ programId, getProgram, title, onSeatChange }) {
   const program = getProgram();
   const fields = program.fields || {};
-  const cell = layout === 'cell';
+  const slotted = program.kind === 'slotted';
   const uid = Math.random().toString(36).slice(2, 8);
-  let seat = null; // { slot, trackId } for a time-slot booking
 
   const input = (props) => h('input', { autocomplete: 'off', ...props });
-  const childFirst = input({ type: 'text', maxLength: 30, dataset: { key: `entry-first-${uid}` } });
+  const seatSelect = h('select', {});
+  const childFirst = input({ type: 'text', maxLength: 30 });
   const childInitial = input({ type: 'text', maxLength: 1, class: 'entry-initial' });
   childInitial.addEventListener('input', () => { childInitial.value = childInitial.value.toUpperCase(); });
   const age = input({ type: 'number', min: 0, max: 18, inputMode: 'numeric', class: 'entry-age' });
@@ -51,6 +51,7 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
   const walkIn = h('input', { type: 'checkbox', id: `entry-walkin-${uid}` });
 
   const f = {
+    seat: field('Time slot', seatSelect),
     first: field("Child's first name", childFirst),
     initial: field('Last initial', childInitial),
     age: field('Age', age),
@@ -61,6 +62,7 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
     languageOther: field('Which language?', languageOther),
     notes: field('Notes', notes),
   };
+  f.seat.classList.add('entry-seat-field');
   f.first.classList.add('entry-grow');
   f.caregiver.classList.add('entry-grow');
   f.phone.classList.add('entry-grow');
@@ -69,16 +71,17 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
   f.languageOther.hidden = true;
   language.addEventListener('change', () => { f.languageOther.hidden = language.value !== 'other'; });
 
-  const seatLine = h('p', { class: 'entry-seat' });
   const notice = h('p', { class: 'entry-notice', role: 'status' });
   const formError = h('p', { class: 'form-error', role: 'alert' });
   const addBtn = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Add');
   const siblingBtn = h('button', { type: 'button', class: 'btn', title: 'Shortcut: Ctrl+Enter' }, 'Add, then a sibling');
-  const clearBtn = h('button', { type: 'button', class: 'btn' }, cell ? 'Close' : 'Clear');
+  const clearBtn = h('button', { type: 'button', class: 'btn' }, 'Clear');
   const walkInRow = h('div', { class: 'check-row entry-walkin' }, walkIn,
     h('label', { for: `entry-walkin-${uid}` }, 'Walk-in (here today, did not sign up ahead)'));
 
-  const boxes = [f.first, f.initial];
+  const boxes = [];
+  if (slotted) boxes.push(f.seat);
+  boxes.push(f.first, f.initial);
   if (fields.age) boxes.push(f.age);
   if (fields.caregiver) boxes.push(f.caregiver);
   boxes.push(f.phone);
@@ -86,15 +89,64 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
   boxes.push(f.language, f.languageOther);
   if (fields.notes) boxes.push(f.notes);
 
-  const form = h('form', { class: cell ? 'entry entry-cell' : 'entry entry-strip card', novalidate: true },
-    cell ? seatLine : h('h2', { class: 'entry-title' }, title || 'Add a child'),
+  const form = h('form', { class: 'entry entry-strip card', novalidate: true },
+    h('h2', { class: 'entry-title' }, title || 'Add a child'),
     h('div', { class: 'entry-boxes' }, boxes),
     walkInRow,
     notice,
     formError,
     h('div', { class: 'entry-actions' }, addBtn, siblingBtn, clearBtn),
-    cell ? null : h('p', { class: 'muted small entry-hint' },
-      'Press Enter to add. Ctrl+Enter adds and keeps the contact details for a sibling.'));
+    h('p', { class: 'muted small entry-hint' },
+      slotted
+        ? 'Press Enter to add. The time slot moves to the next free one by itself. Ctrl+Enter adds and keeps the contact details for a sibling.'
+        : 'Press Enter to add. Ctrl+Enter adds and keeps the contact details for a sibling.'));
+
+  // ---- time slots (time-slot programs only)
+
+  // Slots just sent to be saved. They count as taken straight away, so the
+  // Time slot box can move on before the save has come back.
+  const pending = new Set();
+
+  /** Free slots, in time order, on columns whose volunteer has not called out. */
+  function freeSeats(p) {
+    const tracks = p.tracks || [];
+    const list = [];
+    (p.slots || []).forEach((slot, i) => {
+      tracks.forEach((track, t) => {
+        const key = seatKey(i, track.id);
+        if (track.status === 'calledOut' || (p.seats || {})[key] || pending.has(key)) return;
+        const column = tracks.length > 1 ? `, ${p.trackLabel || 'Column'} ${t + 1}` : '';
+        list.push({ value: `${i}|${track.id}`, words: `${formatTime(slot.start)}${column}` });
+      });
+    });
+    return list;
+  }
+
+  /** Rebuild the Time slot choices. Keeps the current choice if it is still free. */
+  function refreshSeats(preferred) {
+    if (!slotted) return;
+    const p = getProgram() || program;
+    for (const key of [...pending]) if ((p.seats || {})[key]) pending.delete(key);
+    const free = freeSeats(p);
+    const before = seatSelect.value;
+    const wanted = preferred !== undefined ? preferred : before;
+    seatSelect.replaceChildren(
+      ...free.map((s) => h('option', { value: s.value }, s.words)),
+      h('option', { value: NO_SLOT }, free.length ? 'No time slot (waitlist)' : 'No free slots (waitlist)'));
+    const firstTime = !seatSelect.dataset.ready;
+    seatSelect.dataset.ready = '1';
+    if (!firstTime && wanted === NO_SLOT && preferred === undefined) seatSelect.value = NO_SLOT;
+    else if (free.some((s) => s.value === wanted)) seatSelect.value = wanted;
+    else seatSelect.value = free.length ? free[0].value : NO_SLOT;
+    if (seatSelect.value !== before) onSeatChange?.();
+  }
+
+  function currentSeat() {
+    if (!slotted || seatSelect.value === NO_SLOT) return null;
+    const [slot, trackId] = seatSelect.value.split('|');
+    return { slot: Number(slot), trackId };
+  }
+  seatSelect.addEventListener('change', () => { refreshNotice(); onSeatChange?.(); });
 
   // ---- small helpers
 
@@ -102,14 +154,16 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
     const p = getProgram() || program;
     addBtn.textContent = walkIn.checked ? 'Add walk-in' : 'Add';
     siblingBtn.hidden = walkIn.checked;
+    const seat = currentSeat();
     let text = '';
-    if (!walkIn.checked) {
-      if (p.kind === 'slotted' && !seat) text = 'No time slot: this child goes on the waitlist.';
-      else if (p.kind !== 'slotted' && (p.seatsTaken || 0) >= (p.capacity || 0)) text = 'This program is full: this child goes on the waitlist.';
-    } else if (p.kind === 'slotted' && !seat) {
-      text = 'Walk-in without a time slot. To seat a walk-in, use "Walk-in" in an empty slot.';
-    } else {
-      text = 'Only the first name is needed for a walk-in.';
+    if (walkIn.checked) {
+      text = slotted && !seat
+        ? 'Walk-in without a time slot. Only the first name is needed.'
+        : 'Only the first name is needed for a walk-in.';
+    } else if (slotted && !seat) {
+      text = 'No time slot: this child goes on the waitlist.';
+    } else if (!slotted && (p.seatsTaken || 0) >= (p.capacity || 0)) {
+      text = 'This program is full: this child goes on the waitlist.';
     }
     notice.textContent = text;
   }
@@ -142,6 +196,7 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
   function submit(keepContact) {
     clearErrors();
     const p = getProgram() || program;
+    const seat = currentSeat();
     const typed = {
       childFirst: childFirst.value,
       childInitial: childInitial.value,
@@ -168,26 +223,28 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
       return;
     }
 
-    // Empty the boxes straight away and hand the cursor back.
+    // Empty the boxes straight away, move to the next free slot, and hand
+    // the cursor back.
     const name = childLabel(data);
+    const key = seat ? seatKey(seat.slot, seat.trackId) : null;
+    const where = seat ? seatSelect.selectedOptions[0]?.textContent || '' : '';
+    if (key) pending.add(key);
     clearChild();
     if (!keepContact) clearContact();
-    if (cell) {
-      onSibling?.(keepContact && holdsContact());
-      onClose?.();
-    } else {
-      childFirst.focus();
-    }
+    refreshSeats();
+    refreshNotice();
+    childFirst.focus();
 
     queue = queue.then(async () => {
       try {
         const result = await addSignup(programId, typed);
-        if (data.walkIn) toast(`${name} is added as a walk-in.`);
+        if (data.walkIn) toast(`${name} is added as a walk-in${where ? ` at ${where}` : ''}.`);
         else if (result.status === 'waitlisted') toast(`${name} is on the waitlist (number ${result.waitlistPosition}).`);
-        else toast(`${name} is registered.`);
+        else toast(where ? `${name} is booked for ${where}.` : `${name} is registered.`);
       } catch (e) {
         // Rare (for example the slot was taken a second ago). Say so plainly
         // and, if the boxes are still empty, put back what was typed.
+        if (key) pending.delete(key);
         if (!childFirst.value && !childInitial.value) {
           childFirst.value = typed.childFirst;
           childInitial.value = typed.childInitial;
@@ -210,6 +267,7 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
           showError(e);
         }
       } finally {
+        refreshSeats();
         refreshNotice();
       }
     });
@@ -220,41 +278,37 @@ export function createEntry({ programId, getProgram, layout = 'strip', title, on
   form.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
       ev.preventDefault();
-      if (!walkIn.checked) submit(true);
-      else submit(false);
-    } else if (ev.key === 'Escape' && cell) {
-      ev.preventDefault();
-      onClose?.();
+      submit(!walkIn.checked);
     }
   });
   clearBtn.addEventListener('click', () => {
     clearErrors();
-    if (cell) {
-      onClose?.();
-    } else {
-      clearChild();
-      clearContact();
-      walkIn.checked = false;
-      refreshNotice();
-      childFirst.focus();
-    }
+    clearChild();
+    clearContact();
+    walkIn.checked = false;
+    refreshSeats();
+    refreshNotice();
+    childFirst.focus();
   });
 
+  refreshSeats();
   refreshNotice();
 
   return {
     el: form,
-    /** Point the boxes at a time slot (cell layout) and/or switch walk-in on or off. */
-    open({ seat: newSeat = null, seatLabel = '', walkIn: asWalkIn = false } = {}) {
-      seat = newSeat;
-      seatLine.textContent = seatLabel;
-      walkIn.checked = !!asWalkIn;
-      clearErrors();
-      refreshNotice();
-    },
     focus() { childFirst.focus(); },
-    refresh: refreshNotice,
-    holdsContact,
-    clearContact,
+    /** Call after the program data changes. */
+    refresh() { refreshSeats(); refreshNotice(); },
+    /** Time-slot programs: choose a slot (from a click in the grid). */
+    selectSeat(slot, trackId, asWalkIn = false) {
+      walkIn.checked = !!asWalkIn;
+      refreshSeats(`${slot}|${trackId}`);
+      refreshNotice();
+      onSeatChange?.();
+      form.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      childFirst.focus();
+    },
+    /** Time-slot programs: the slot the next child will go into, or null. */
+    selectedSeat: currentSeat,
   };
 }

@@ -13,7 +13,7 @@ import {
 } from '../data/store.js';
 import {
   STATUS, childLabel, formatTime, formatDateLong, computeCounts, followThrough, toDate,
-  volunteerLabel, slotLabel, localDateString,
+  volunteerLabel, localDateString,
 } from '../data/model.js';
 import { openSignupForm } from './signup-form.js';
 import { createEntry } from './entry-row.js';
@@ -27,11 +27,9 @@ export function renderProgram(container, ctx, programId) {
   let volunteers = null;     // the volunteer list (names and dogs only); null = still loading
   // The always-open entry boxes. Built once (when the program arrives) and
   // put back on the page after every redraw, so typing is never lost.
-  let stripEntry = null;     // above the roster, or above the slot grid
-  let cellEntry = null;      // slotted programs: inside the slot being filled
-  let openSeat = null;       // slotted programs: { slot, trackId } being filled
-  let siblingHeld = false;   // slotted programs: contact kept for a sibling's slot
+  let stripEntry = null;     // the entry row: above the roster, or above the slot grid
   let firstFocusDone = false;
+  let drawing = false;
 
   listVolunteers().then((list) => { volunteers = list; draw(); }).catch(() => { volunteers = []; draw(); });
 
@@ -113,36 +111,16 @@ export function renderProgram(container, ctx, programId) {
     if (result) toast(`${label} is removed.`);
   }
 
-  /** Words for a time slot, such as "10:30 AM to 10:40 AM, Dog 1". */
-  function seatWords(seat) {
-    const index = (program.tracks || []).findIndex((t) => t.id === seat.trackId);
-    const column = (program.tracks || []).length > 1 ? `, ${program.trackLabel || 'Column'} ${index + 1}` : '';
-    return slotLabel(program.slots[seat.slot]) + column;
-  }
-
-  /** Make the entry boxes the first time the program is known. */
+  /** Make the entry row the first time the program is known. */
   function ensureEntries() {
     if (stripEntry) return;
-    const slotted = program.kind === 'slotted';
     stripEntry = createEntry({
-      programId, getProgram: () => program, layout: 'strip',
-      title: slotted ? 'Add to the waitlist, or a walk-in without a time slot' : 'Add a child',
+      programId, getProgram: () => program,
+      title: 'Add a child',
+      // Time-slot programs: when the chosen slot changes, redraw so the grid
+      // can mark it. (Not while a redraw is already under way.)
+      onSeatChange: () => { if (!drawing) draw(); },
     });
-    if (slotted) {
-      cellEntry = createEntry({
-        programId, getProgram: () => program, layout: 'cell',
-        onClose: () => { openSeat = null; draw(); },
-        onSibling: (held) => { siblingHeld = held; },
-      });
-    }
-  }
-
-  /** Slotted programs: open the entry boxes inside a free time slot. */
-  function openSlotEntry(slot, trackId, walkIn = false) {
-    openSeat = { slot, trackId };
-    cellEntry.open({ seat: openSeat, seatLabel: seatWords(openSeat), walkIn });
-    draw();
-    cellEntry.focus();
   }
 
   // ---- admin: duplicate and delete
@@ -292,7 +270,9 @@ export function renderProgram(container, ctx, programId) {
     let caret = null;
     try { caret = active && active.selectionStart != null ? [active.selectionStart, active.selectionEnd] : null; } catch (e) { caret = null; }
 
-    const page = build();
+    drawing = true;
+    let page;
+    try { page = build(); } finally { drawing = false; }
     add(clear(container), page);
 
     if (active && active.isConnected) {
@@ -304,7 +284,7 @@ export function renderProgram(container, ctx, programId) {
     }
 
     // On arrival, put the cursor in "first name" so staff can just start typing.
-    if (!firstFocusDone && stripEntry && stripEntry.el.isConnected && program.kind !== 'slotted') {
+    if (!firstFocusDone && stripEntry && stripEntry.el.isConnected) {
       firstFocusDone = true;
       if (!active || active === container) stripEntry.focus();
     }
@@ -333,31 +313,17 @@ export function renderProgram(container, ctx, programId) {
       if (!closed && flagged.length) parts.push(contactAlert(flagged));
       if (!closed) {
         ensureEntries();
-        // If another desk just took the slot being filled, close the boxes.
-        // What was typed is kept and shows again in the next slot opened.
-        if (openSeat && (program.seats || {})[`${openSeat.slot}_${openSeat.trackId}`]) {
-          openSeat = null;
-        }
-        if (siblingHeld && !cellEntry.holdsContact()) siblingHeld = false;
-        if (siblingHeld && !openSeat) {
-          parts.push(h('p', { class: 'alert', role: 'status' },
-            'Adding a sibling: click "Add child" in a free time slot. The contact details are already filled in. ',
-            h('button', { type: 'button', class: 'btn btn-small', dataset: { key: 'sibling-nevermind' },
-              onclick: () => { siblingHeld = false; cellEntry.clearContact(); draw(); } }, 'Never mind')));
-        }
+        stripEntry.refresh(); // before the grid is drawn, so the grid marks the right slot
+        parts.push(stripEntry.el);
       }
       parts.push(renderSlotGrid({
         program, signups, volunteers, ctx, closed,
-        entry: closed ? null : { openSeat, el: cellEntry.el },
+        selectedSeat: closed ? null : stripEntry.selectedSeat(),
         helpers: {
-          addToSlot: openSlotEntry,
+          addToSlot: (slot, trackId, walkIn = false) => stripEntry.selectSeat(slot, trackId, walkIn),
           editSignup, cancelOne, removeWalkIn, toggleAttendance, attempt, languageText,
         },
       }));
-      if (!closed) {
-        stripEntry.refresh();
-        parts.push(stripEntry.el);
-      }
       parts.push(countsBox(closed));
       const cancelledSlotted = signups.filter((s) => s.status === STATUS.cancelled).sort(byCreated);
       if (cancelledSlotted.length) parts.push(cancelledSection(cancelledSlotted));

@@ -17,7 +17,7 @@ import { STATUS, childLabel, slotLabel, volunteerLabel, seatKey, toDate } from '
 const MAX_TRACKS = 4; // the store also enforces this
 const STATUS_WORDS = { scheduled: 'Scheduled', confirmed: 'Confirmed', calledOut: 'Called out' };
 
-export function renderSlotGrid({ program, signups, volunteers, closed, helpers, entry }) {
+export function renderSlotGrid({ program, signups, volunteers, closed, helpers, selectedSeat }) {
   const tracks = program.tracks || [];
   const slots = program.slots || [];
   const fields = program.fields || {};
@@ -185,14 +185,16 @@ export function renderSlotGrid({ program, signups, volunteers, closed, helpers, 
     const where = `${slotLabel(slot)}, ${trackTitle(track)}`;
     if (isCalledOut(track)) return h('td', { class: cls }, h('span', { class: 'grid-note' }, 'Not available'));
     if (closed) return h('td', { class: cls }, h('span', { class: 'muted' }, 'Empty'));
-    // The slot being filled right now: show the entry boxes inside the cell.
-    if (entry?.openSeat && entry.openSeat.slot === slotIndex && entry.openSeat.trackId === track.id) {
-      return h('td', { class: `${cls} grid-entry-open` }, entry.el);
+    // The slot the entry row above is pointing at: say so, in words.
+    if (selectedSeat && selectedSeat.slot === slotIndex && selectedSeat.trackId === track.id) {
+      return h('td', { class: `${cls} grid-next` },
+        h('p', { class: 'grid-next-text' }, 'Next child goes here'),
+        h('p', { class: 'muted small' }, 'Type in the boxes above and press Enter. Click another free slot to choose a different time.'));
     }
     return h('td', { class: cls },
-      btn('Add child', `Add child at ${where}`, `seat-${slotIndex}-${track.id}`,
+      btn('Use this slot', `Use the slot at ${where}`, `seat-${slotIndex}-${track.id}`,
         () => helpers.addToSlot(slotIndex, track.id), { big: true }),
-      btn('Walk-in', `Add walk-in at ${where}`, `walkin-${slotIndex}-${track.id}`,
+      btn('Walk-in here', `Walk-in at ${where}`, `walkin-${slotIndex}-${track.id}`,
         () => helpers.addToSlot(slotIndex, track.id, true)));
   }
 

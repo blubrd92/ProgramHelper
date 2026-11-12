@@ -63,8 +63,7 @@
 .entry-notice:empty { display: none; }
 .entry-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .6rem; }
 .entry-hint { margin: .5rem 0 0; }
-.entry-cell .entry-boxes .field { flex: 1 1 100%; }
-.entry-cell .entry-boxes .field:has(.entry-initial), .entry-cell .entry-boxes .field:has(.entry-age) { flex: 0 0 5.5rem; }
-.entry-cell .entry-boxes .field:first-child { flex: 1 1 8rem; }
-.entry-seat { margin: 0 0 .4rem; font-weight: 700; }
-td.grid-entry-open { outline: 3px solid var(--brand); outline-offset: -3px; background: #fff; }
+.entry-boxes .field.entry-seat-field { flex: 0 1 12rem; min-width: 11rem; }
+.entry-seat-field select { font-weight: 700; }
+td.grid-next { outline: 3px solid var(--brand); outline-offset: -3px; background: #fff; }
+.grid-next-text { margin: 0 0 .2rem; font-weight: 700; color: var(--brand); }
