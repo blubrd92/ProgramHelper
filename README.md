@@ -178,6 +178,10 @@ seed/                          invented practice data for npm run dev
 
 To upgrade the Firebase library: change the version in `package.json` and in the import map in `index.html`, run `npm install`, then `npm run vendor`, then `npm test`.
 
+## For whoever works on the code next
+
+`CLAUDE.md` at the top of the repository holds the working notes: the rules the tool must never break, how it is put together, mistakes already made, decisions on record, and what is still open. Claude Code reads it automatically at the start of a session. It is meant to be updated in the same change as the code, every time.
+
 ## Left out on purpose
 
 Parent self-registration, sending email or text, other departments, importing the old workbook, and anything that needs a paid plan. Possible later additions that were considered and not built: offline use, custom fields beyond the four optional ones, a print view, stats rolled up by series, filtering or sorting on the roster and stats tables.
